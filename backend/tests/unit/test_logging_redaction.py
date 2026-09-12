@@ -36,12 +36,12 @@ def test_query_param_secret_in_raw_message_is_redacted():
         logging.INFO,
         __file__,
         0,
-        'HTTP Request: GET https://finnhub.io/api/v1/company-news?symbol=AAPL&token=live_abc123secret "HTTP/1.1 401"',
+        'HTTP Request: GET https://finnhub.io/api/v1/company-news?symbol=AAPL&token=notarealvalueusedintestonly "HTTP/1.1 401"',
         (),
         None,
     )
     formatted = json.loads(JsonFormatter().format(record))
-    assert "live_abc123secret" not in formatted["message"]
+    assert "notarealvalueusedintestonly" not in formatted["message"]
     assert "token=***redacted***" in formatted["message"]
     assert "symbol=AAPL" in formatted["message"]  # non-secret params stay readable
 
