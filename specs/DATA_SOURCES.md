@@ -56,3 +56,18 @@ Sources réelles vérifiées (URL testée, licence et quotas confirmés à la so
 ### Calendrier ICS — aucune source retenue pour l'instant
 
 Aucun calendrier ICS officiel (Réserve fédérale, NYSE, Nasdaq) n'a été trouvé avec une licence de réutilisation programmatique claire ; les agrégateurs tiers identifiés affichent un copyright « tous droits réservés » sans autorisation explicite. À réévaluer si une société suivie publie son propre calendrier IR en ICS.
+
+## Module Portefeuille — aucun fournisseur de marché réel branché
+
+`portfolio-backend/app/adapters/market_data.py` définit l'interface `MarketDataProvider` mais
+n'expose que deux implémentations sûres : `NullMarketDataProvider` (défaut, ne renvoie jamais de
+donnée) et `FixtureMarketDataProvider` (fixtures JSON locales, démo/tests uniquement). Aucun appel
+réseau réel n'est effectué par ce module pour l'instant ; chaque prix affiché vient d'une saisie
+manuelle (`POST /instruments/{id}/prices`) ou, dans une PR ultérieure, d'un import CSV.
+
+Le candidat naturel pour un premier fournisseur réel est **Finnhub** (`/quote` et `/stock/candle`),
+puisqu'une clé fonctionnelle est déjà configurée pour le module Actualités & Événements — sous
+réserve de revérifier que son offre gratuite couvre bien les cotations (pas seulement les
+actualités) et les conditions d'usage associées. Comme pour SEC EDGAR/Finnhub ci-dessus, le
+branchement d'un fournisseur réel ici suivra le même processus : vérification licence/quotas,
+proposition explicite, et confirmation avant toute création réelle en base ou tout appel réseau.
