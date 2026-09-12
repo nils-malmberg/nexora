@@ -43,6 +43,7 @@ pointent dessus — aucune clé, aucun compte, aucun appel réseau réel.
 | `INGESTION_INTERVAL_SECONDS` / `INGESTION_JITTER_SECONDS` | Cadence du worker planifié | `900` / `60` |
 | `HTTP_TIMEOUT_SECONDS`, `MAX_RETRIES`, `RETRY_BACKOFF_BASE_SECONDS` | Résilience des adaptateurs | `10`, `3`, `1.0` |
 | `CIRCUIT_BREAKER_FAILURE_THRESHOLD` / `_RESET_SECONDS` | Disjoncteur par fournisseur | `5` / `300` |
+| `AUTO_DISABLE_AFTER_FAILURES` | Désactivation automatique (`enabled=false`) après ce nombre d'échecs **consécutifs**, tous cycles ouvert/demi-ouvert confondus — évite qu'un fournisseur bloqué soit re-sondé indéfiniment sans supervision (voir incident sec.gov dans `specs/DATA_SOURCES.md`) | `15` |
 | `DEDUP_TITLE_SIMILARITY_THRESHOLD` / `_TIME_WINDOW_HOURS` | Seuils de déduplication approximative | `0.88` / `72` |
 | `DEFAULT_PAGE_SIZE` / `MAX_PAGE_SIZE` | Pagination API | `20` / `100` |
 | `CORS_ALLOWED_ORIGINS` | Origines autorisées (CSV) pour l'API lecture seule | `*` |
@@ -86,6 +87,12 @@ rate limit, timeout — voir les adaptateurs existants comme modèle).
    `CIRCUIT_BREAKER_RESET_SECONDS`, pour un nouvel essai sans intervention.
 4. En cas de changement durable de schéma source, mettre à jour `Provider.config` (mapping JSON ou feeds
    RSS/ICS) sans redéploiement de code lorsque c'est un adaptateur générique.
+5. Si `consecutive_failures` atteint `AUTO_DISABLE_AFTER_FAILURES`, le fournisseur passe automatiquement
+   à `enabled=false` (log `ERROR` + métrique `nexora_provider_auto_disabled_total`) : il ne sera **plus
+   jamais** re-sondé automatiquement, même après le délai du disjoncteur. Investiguer la cause avant de
+   remettre `enabled=true` manuellement — ne jamais réactiver puis relancer en boucle sans avoir compris
+   pourquoi ça échouait (voir l'incident sec.gov documenté dans `specs/DATA_SOURCES.md` : des relances
+   répétées et non supervisées contre une source qui bloquait déjà ont provoqué un bannissement d'IP réel).
 
 ## Limites connues (V1)
 

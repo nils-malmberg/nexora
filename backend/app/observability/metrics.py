@@ -27,6 +27,11 @@ asset_freshness_age_seconds = Gauge(
     "nexora_asset_freshness_age_seconds", "Age of the most recent item for an asset", ["asset_id", "data_type"]
 )
 provider_up = Gauge("nexora_provider_up", "1 if the provider circuit is closed, else 0", ["provider_id"])
+provider_auto_disabled_total = Counter(
+    "nexora_provider_auto_disabled_total",
+    "Providers auto-disabled after too many consecutive failures (requires manual re-enable)",
+    ["provider_id"],
+)
 stale_responses_total = Counter("nexora_stale_responses_total", "API responses served with stale=true", ["endpoint"])
 collection_publication_lag_seconds = Histogram(
     "nexora_collection_publication_lag_seconds", "collected_at - publication_at", ["provider_id"]

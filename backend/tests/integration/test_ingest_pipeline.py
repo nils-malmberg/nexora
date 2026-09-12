@@ -117,6 +117,38 @@ def test_all_feeds_failing_opens_circuit_after_threshold(db_session, make_provid
 
 
 @respx.mock
+def test_provider_auto_disabled_after_persistent_failures(db_session, make_provider, monkeypatch):
+    """A circuit that keeps half-opening and re-failing forever, on a fixed
+    cadence, with nobody necessarily watching, is exactly what let an
+    unattended worker hammer an already-blocking source for hours (see
+    specs/DATA_SOURCES.md incident note). Past a configurable number of
+    consecutive failures - spanning any number of open/half-open cycles -
+    the provider must disable itself rather than keep probing forever."""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "retry_backoff_base_seconds", 0.0)
+    monkeypatch.setattr(settings, "circuit_breaker_reset_seconds", 0)  # let the test cycle instantly
+    monkeypatch.setattr(settings, "auto_disable_after_failures", 7)
+    provider = make_provider("issuer-rss", "rss")
+    _add_feed(db_session, provider, RSS_URL)
+    respx.get(RSS_URL).mock(return_value=httpx.Response(503))
+
+    for _ in range(settings.auto_disable_after_failures):
+        run_provider(db_session, provider)
+        db_session.refresh(provider)
+        if not provider.enabled:
+            break
+
+    assert provider.enabled is False
+    assert provider.consecutive_failures >= settings.auto_disable_after_failures
+
+    # Further runs are a clean, network-free no-op once disabled.
+    respx.get(RSS_URL).mock(side_effect=AssertionError("should not be called once auto-disabled"))
+    run = run_provider(db_session, provider)
+    assert run.error_code == "provider_disabled"
+
+
+@respx.mock
 def test_calendar_status_change_is_traceable(db_session, make_provider, make_asset):
     asset = make_asset(symbol="DEMO")
     provider = make_provider("issuer-calendar", "calendar_ics")

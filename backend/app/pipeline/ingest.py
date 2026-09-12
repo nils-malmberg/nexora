@@ -46,6 +46,7 @@ from app.observability.metrics import (
     ingestion_runs_total,
     items_processed_total,
     parsing_errors_total,
+    provider_auto_disabled_total,
     provider_up,
 )
 from app.pipeline.assets import resolve_asset
@@ -84,6 +85,17 @@ def _record_failure(provider: Provider, now: datetime) -> None:
     threshold_reached = provider.consecutive_failures >= settings.circuit_breaker_failure_threshold
     if threshold_reached or provider.circuit_state == "half_open":
         provider.circuit_state = "open"
+
+    if provider.consecutive_failures >= settings.auto_disable_after_failures:
+        provider.enabled = False
+        provider_auto_disabled_total.labels(provider_id=provider.id).inc()
+        log_event(
+            logger,
+            logging.ERROR,
+            "provider auto-disabled after too many consecutive failures - requires manual re-enable",
+            provider_id=provider.id,
+            consecutive_failures=provider.consecutive_failures,
+        )
 
 
 def _upsert_news_item(db: Session, run_id: str, normalized: NormalizedNewsItem, counts: dict) -> None:

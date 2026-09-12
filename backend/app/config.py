@@ -39,6 +39,14 @@ class Settings(BaseSettings):
     circuit_breaker_failure_threshold: int = 5
     circuit_breaker_reset_seconds: int = 300
 
+    # Without this, an open circuit half-opens and re-probes forever, on a
+    # fixed cadence, with no human ever necessarily noticing - exactly what
+    # let an unattended worker hammer a source that was already blocking us
+    # for hours. Past this many *consecutive* failures (spanning any number
+    # of open/half-open cycles), the provider is disabled outright and
+    # requires a human to re-enable it after investigating.
+    auto_disable_after_failures: int = 15
+
     # Pagination limits.
     default_page_size: int = 20
     max_page_size: int = 100
