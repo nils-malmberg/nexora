@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
-from sqlalchemy import select, tuple_
+from sqlalchemy import or_, select, tuple_
 from sqlalchemy.orm import Session
 
 from app.adapters.common import ALLOWED_CATEGORIES, ALLOWED_KINDS
@@ -28,6 +28,9 @@ def list_asset_news(
     kind: str | None = Query(default=None),
     since: datetime | None = Query(default=None),
     until: datetime | None = Query(default=None),
+    q: str | None = Query(
+        default=None, min_length=1, max_length=200, description="Recherche texte (titre/résumé/extrait)"
+    ),
     cursor: str | None = Query(default=None),
     limit: int | None = Query(default=None, ge=1),
     db: Session = Depends(get_db),
@@ -55,6 +58,11 @@ def list_asset_news(
         query = query.where(NewsItem.publication_at >= since)
     if until:
         query = query.where(NewsItem.publication_at <= until)
+    if q:
+        pattern = f"%{q}%"
+        query = query.where(
+            or_(NewsItem.title.ilike(pattern), NewsItem.excerpt.ilike(pattern), NewsItem.summary.ilike(pattern))
+        )
     if cursor:
         cursor_key, cursor_id = decode_cursor(cursor)
         query = query.where(tuple_(NewsItem.publication_at, NewsItem.id) < tuple_(cursor_key, cursor_id))

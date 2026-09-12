@@ -45,7 +45,7 @@ export function getAsset(assetId: string): Promise<Asset> {
 
 export function listAssetNews(
   assetId: string,
-  options: { category?: string; kind?: string; cursor?: string; limit?: number } = {},
+  options: { category?: string; kind?: string; cursor?: string; limit?: number; q?: string } = {},
 ): Promise<Page<NewsItem>> {
   return request<Page<NewsItem>>(`/api/v1/assets/${assetId}/news`, options);
 }

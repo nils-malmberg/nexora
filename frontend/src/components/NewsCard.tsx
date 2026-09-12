@@ -3,7 +3,17 @@ import { CATEGORY_LABELS } from "../types";
 import { ConfidenceBadge, FreshnessBadge, KindBadge, StaleBadge } from "./Badges";
 import { formatDateTime } from "../format";
 
-export function NewsCard({ item }: { item: NewsItem }) {
+export function NewsCard({
+  item,
+  dismissed = false,
+  onDismiss,
+  onRestore,
+}: {
+  item: NewsItem;
+  dismissed?: boolean;
+  onDismiss?: () => void;
+  onRestore?: () => void;
+}) {
   const cardClass = ["card", item.stale ? "stale" : "", `kind-${item.kind}`].filter(Boolean).join(" ");
   return (
     <article className={cardClass} aria-label={item.title}>
@@ -37,6 +47,38 @@ export function NewsCard({ item }: { item: NewsItem }) {
           {item.duplicate_of.length > 0 && <div>Doublon probable d'un autre article déjà listé.</div>}
         </div>
       )}
+
+      <details className="details-toggle">
+        <summary>Détails</summary>
+        <dl className="details-grid">
+          <dt>Fournisseur</dt>
+          <dd>{item.provider_name}</dd>
+          <dt>Citation</dt>
+          <dd>{item.citation ?? "—"}</dd>
+          <dt>Langue</dt>
+          <dd>{item.language ?? "inconnue"}</dd>
+          <dt>Statut de vérification</dt>
+          <dd>{item.verification_status}</dd>
+          <dt>Score de pertinence</dt>
+          <dd>{item.relevance_score.toFixed(3)}</dd>
+          <dt>Collecté le</dt>
+          <dd>{formatDateTime(item.collected_at)}</dd>
+          <dt>Mis à jour le</dt>
+          <dd>{formatDateTime(item.updated_at)}</dd>
+        </dl>
+      </details>
+
+      <div className="card-actions">
+        {dismissed ? (
+          <button type="button" onClick={onRestore} className="link-button">
+            Réafficher
+          </button>
+        ) : (
+          <button type="button" onClick={onDismiss} className="link-button">
+            Masquer localement
+          </button>
+        )}
+      </div>
     </article>
   );
 }

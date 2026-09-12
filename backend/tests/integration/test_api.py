@@ -135,6 +135,36 @@ def test_asset_news_pagination_cursor(client):
     assert seen_titles == {"Item 0", "Item 1", "Item 2"}
 
 
+def test_asset_news_text_search(client):
+    http, session = client
+    asset = models.Asset(symbol="DEMO", name="Demo SA")
+    provider = models.Provider(name="issuer-rss", type="rss")
+    session.add_all([asset, provider])
+    session.commit()
+    _seed_news_item(session, asset, provider, title="Dividende exceptionnel annonce", content_hash="hash-a")
+    _seed_news_item(
+        session, asset, provider, title="Autre sujet", excerpt="mention du dividende ici", content_hash="hash-b"
+    )
+    _seed_news_item(session, asset, provider, title="Sans rapport", content_hash="hash-c")
+
+    resp = http.get(f"/api/v1/assets/{asset.id}/news", params={"q": "dividende"})
+    assert resp.status_code == 200
+    titles = {i["title"] for i in resp.json()["items"]}
+    assert titles == {"Dividende exceptionnel annonce", "Autre sujet"}
+
+
+def test_asset_news_text_search_no_match_returns_empty(client):
+    http, session = client
+    asset = models.Asset(symbol="DEMO", name="Demo SA")
+    provider = models.Provider(name="issuer-rss", type="rss")
+    session.add_all([asset, provider])
+    session.commit()
+    _seed_news_item(session, asset, provider, title="Titre")
+    resp = http.get(f"/api/v1/assets/{asset.id}/news", params={"q": "zzz-no-match-zzz"})
+    assert resp.status_code == 200
+    assert resp.json()["items"] == []
+
+
 def test_asset_news_unknown_category_is_rejected(client):
     http, session = client
     asset = models.Asset(symbol="DEMO", name="Demo SA")

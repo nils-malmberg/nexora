@@ -9,7 +9,17 @@ const STATUS_LABELS: Record<string, string> = {
   unknown: "Statut inconnu",
 };
 
-export function EventCard({ event }: { event: CalendarEvent }) {
+export function EventCard({
+  event,
+  dismissed = false,
+  onDismiss,
+  onRestore,
+}: {
+  event: CalendarEvent;
+  dismissed?: boolean;
+  onDismiss?: () => void;
+  onRestore?: () => void;
+}) {
   return (
     <article className={`card ${event.stale ? "stale" : ""}`} aria-label={event.type}>
       <div className="card-header">
@@ -42,6 +52,36 @@ export function EventCard({ event }: { event: CalendarEvent }) {
           Historique : {event.status_history.map((h) => STATUS_LABELS[h.new_status] ?? h.new_status).join(" → ")}
         </div>
       )}
+
+      <details className="details-toggle">
+        <summary>Détails</summary>
+        <dl className="details-grid">
+          <dt>Actif</dt>
+          <dd>{event.asset_id}</dd>
+          <dt>Fuseau horaire</dt>
+          <dd>{event.timezone}</dd>
+          <dt>Nombre de sources</dt>
+          <dd>{event.sources.length}</dd>
+          <dt>Historique de statut</dt>
+          <dd>
+            {event.status_history.length === 0
+              ? "—"
+              : event.status_history.map((h) => `${STATUS_LABELS[h.new_status] ?? h.new_status} (${formatDate(h.changed_at)})`).join(", ")}
+          </dd>
+        </dl>
+      </details>
+
+      <div className="card-actions">
+        {dismissed ? (
+          <button type="button" onClick={onRestore} className="link-button">
+            Réafficher
+          </button>
+        ) : (
+          <button type="button" onClick={onDismiss} className="link-button">
+            Masquer localement
+          </button>
+        )}
+      </div>
     </article>
   );
 }

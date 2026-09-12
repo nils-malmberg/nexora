@@ -315,3 +315,93 @@ header.app-header p {
   color: var(--text-muted);
   margin-top: 6px;
 }
+
+.details-toggle {
+  margin-top: 10px;
+  font-size: 0.82rem;
+}
+
+.details-toggle summary {
+  cursor: pointer;
+  color: var(--accent);
+  user-select: none;
+}
+
+.details-grid {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 12px;
+  margin: 10px 0 0;
+  color: var(--text-muted);
+}
+
+.details-grid dt {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.details-grid dd {
+  margin: 0;
+  word-break: break-word;
+}
+
+.card-actions {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  text-decoration: underline;
+}
+
+.search-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+.search-bar input {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  min-width: 220px;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: end;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.export-button {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.dismissed-toggle {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
