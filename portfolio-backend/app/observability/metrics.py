@@ -9,3 +9,6 @@ account_deletions_total = Counter("nexora_portfolio_account_deletions_total", "A
 transactions_created_total = Counter(
     "nexora_portfolio_transactions_created_total", "Transactions created by type", ["type"]
 )
+analytics_requests_total = Counter(
+    "nexora_portfolio_analytics_requests_total", "Analytics endpoint calls by endpoint", ["endpoint"]
+)

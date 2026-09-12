@@ -21,6 +21,7 @@ import {
 import type { Instrument, Portfolio, Position, Transaction, TransactionType, Valuation } from "../types";
 import { formatAmount, formatDateTime, formatQuantity } from "../format";
 import { ImportWizard } from "../components/ImportWizard";
+import { AnalyticsSection } from "../components/AnalyticsSection";
 
 const INSTRUMENT_REQUIRED_TYPES: TransactionType[] = ["achat", "vente", "dividende", "coupon", "split"];
 
@@ -42,6 +43,11 @@ export function PortfolioDetailPage({
   const [error, setError] = useState<string | null>(null);
   const [renaming, setRenaming] = useState(false);
   const [newName, setNewName] = useState(portfolio.name);
+  // AnalyticsSection fetches its own data independently (history/allocation/
+  // risk/performance) and only depends on portfolio.id, which never changes
+  // here - without this, adding a transaction or a price wouldn't ever
+  // refresh the analytics charts on this same page view.
+  const [analyticsRefreshKey, setAnalyticsRefreshKey] = useState(0);
 
   function reload() {
     setError(null);
@@ -53,6 +59,7 @@ export function PortfolioDetailPage({
         setInstruments(instr);
       })
       .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Erreur de chargement"));
+    setAnalyticsRefreshKey((k) => k + 1);
   }
 
   useEffect(reload, [portfolio.id]);
@@ -116,6 +123,8 @@ export function PortfolioDetailPage({
       <TransactionsList transactions={transactions} instruments={instruments} onReverse={handleReverse} />
 
       <ImportWizard portfolioId={portfolio.id} onCommitted={reload} />
+
+      <AnalyticsSection portfolioId={portfolio.id} instruments={instruments} refreshKey={analyticsRefreshKey} />
     </div>
   );
 }

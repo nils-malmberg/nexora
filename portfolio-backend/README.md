@@ -1,8 +1,10 @@
 # Module Portefeuille — backend
 
-Socle du dashboard NeXora (`specs/ROADMAP.md`, Phase 1 — fondations V1) : authentification,
-portefeuilles, transactions, positions et valorisation avec provenance. **Consultation et analyse
-uniquement : aucun ordre financier, aucune recommandation personnalisée.**
+Dashboard NeXora (`specs/ROADMAP.md`, Phases 1 et 2) : authentification, portefeuilles,
+transactions, positions et valorisation avec provenance (Phase 1), import CSV, historique,
+allocation, risque descriptif, performance TWR/MWR, indicateurs techniques et aide éducative
+(Phase 2). **Consultation et analyse uniquement : aucun ordre financier, aucune recommandation
+personnalisée.**
 
 Service indépendant du module [Actualités & Événements](../backend/README.md) (base de données,
 API et frontend séparés) — voir `specs/README.md` pour le périmètre global du produit.
@@ -81,6 +83,31 @@ si `asset_class`/`currency` sont renseignés — toujours signalé dans le rappo
 `valorisation_privee` est supporté (crée la transaction, une `PrivateValuation` et un `PricePoint`,
 avec `method="Import CSV"` puisque le CSV V1 n'a pas de colonne dédiée).
 
+## Analyse (Phase 2 — specs/ANALYTICS_AND_CHARTS.md)
+
+`app/domain/analytics.py` expose, par portefeuille, un historique de valorisation
+(`GET /portfolios/{id}/analytics/history`), une répartition par classe d'actif/instrument/devise
+(`.../allocation`, **trésorerie exclue** — déjà sa propre carte dans `specs/UX_SPEC.md`), un risque
+descriptif — volatilité annualisée et repli maximum (`.../risk`) — et une performance TWR/MWR
+(`.../performance`). Par instrument, `GET /instruments/{id}/indicators` calcule SMA/EMA/RSI/MACD
+sur les prix connus.
+
+Tout est **strictement descriptif du passé, jamais une recommandation**, et la couverture
+insuffisante est explicitement signalée (`has_sufficient_data=false`) plutôt que de produire un
+chiffre trompeur — moins de 3 points de valorisation, par exemple, ne permet pas de calculer une
+volatilité. L'historique est calculé aux dates réelles où une transaction ou un prix existe (pas une
+série quotidienne interpolée) ; TWR/MWR ne considèrent `depot`/`retrait` comme flux externes que
+`dividende`/`coupon` restent en trésorerie interne. Aucune dépendance de graphique n'a été ajoutée :
+les courbes sont du SVG fait main (`portfolio-frontend/src/charts/`) — pas de vrais chandeliers
+OHLC tant qu'aucune source ne fournit open/high/low/volume (voir "Fournisseur de marché" plus bas).
+
+## Aide éducative (Phase 2 — specs/UX_SPEC.md)
+
+`GET /education` et `GET /education/{slug}` servent un contenu éditorial statique et versionné
+(`app/education_content.py`, pas une table — ce n'est pas une donnée utilisateur) : ce que chaque
+métrique mesure, sa méthode et ses limites, ton neutre, jamais de recommandation. Public (aucune
+authentification requise).
+
 ## Fournisseur de marché
 
 `app/adapters/market_data.py` définit l'interface `MarketDataProvider`, mais **aucun fournisseur réel
@@ -94,9 +121,10 @@ que pour les sources de ce dernier — voir `specs/DATA_SOURCES.md`.
 
 - `transfert` (import CSV et API manuelle) : sémantique source+destination non couverte par le
   schéma actuel (un seul champ `account`) ; rejeté explicitement plutôt que mal interprété.
-- Graphiques, indicateurs, TWR/MWR (`specs/ANALYTICS_AND_CHARTS.md`) : Phase 2 de la feuille de
-  route, pas encore implémentés.
-- Aide éducative (`GET /education/{slug}`) : Phase 2, pas encore implémentée.
+- Pas de vrais chandeliers OHLC (voir section Analyse) : graphiques en ligne uniquement tant
+  qu'aucune source ne fournit open/high/low/volume.
+- Historique/risque/performance recalculés à la demande en rejouant les transactions (pas de cache) :
+  suffisant au volume V1 (portefeuille personnel), documenté comme choix délibéré.
 - Catalogue d'instruments propre à chaque utilisateur (pas de référentiel partagé/externe tant
   qu'aucun fournisseur réel n'est branché).
 - Import CSV : l'empreinte canonique d'une ligne sans `external_id` utilise le symbole (pas un id
