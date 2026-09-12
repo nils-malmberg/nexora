@@ -50,3 +50,6 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["E501"]
 "app/api/*" = ["B008"]  # FastAPI's Depends()/Query() are meant to be used as defaults
+
+[tool.coverage.run]
+source = ["app"]
