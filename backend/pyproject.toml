@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "News & events module for the NeXora investment dashboard"
 requires-python = ">=3.11"
 dependencies = [
-    "fastapi>=0.115,<0.116",
+    "fastapi>=0.141,<0.142",
     "uvicorn[standard]>=0.30,<0.31",
     "sqlalchemy>=2.0,<2.1",
     "alembic>=1.13,<1.14",
@@ -20,7 +20,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.2,<9",
+    "pytest>=9.1,<10",
     "pytest-asyncio>=0.23,<0.24",
     "respx>=0.21,<0.22",
     "freezegun>=1.5,<2",
@@ -38,6 +38,13 @@ include = ["app*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+# `tests.conftest` and `scripts.*` are imported by full dotted path but are
+# not installed packages (only `app*` is - see packages.find above); without
+# this, bare `pytest` fails to resolve them while `python -m pytest` happens
+# to work only because `-m` itself inserts CWD onto sys.path. Making it
+# explicit here means either invocation works the same way everywhere (dev
+# machines and CI alike).
+pythonpath = ["."]
 
 [tool.ruff]
 line-length = 120

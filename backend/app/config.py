@@ -56,5 +56,10 @@ class Settings(BaseSettings):
     # ever made against this API - see specs/SECURITY.md.
     cors_allowed_origins: str = "*"
 
+    # The worker is a separate process from the API with its own in-memory
+    # Prometheus registry, so it exposes its own /metrics on this port
+    # rather than sharing the API's (see app/worker/scheduler.py).
+    worker_metrics_port: int = 9100
+
 
 settings = Settings()

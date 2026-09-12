@@ -10,9 +10,8 @@ operate and secure.
 
 from __future__ import annotations
 
-import random
-
 from apscheduler.schedulers.blocking import BlockingScheduler
+from prometheus_client import start_http_server
 from sqlalchemy import select
 
 from app.config import settings
@@ -47,17 +46,19 @@ def run_all_enabled_providers() -> None:
 
 def main() -> None:
     configure_logging(settings.log_level)
+    start_http_server(settings.worker_metrics_port)
     scheduler = BlockingScheduler()
-    jitter = random.uniform(0, settings.ingestion_jitter_seconds)
+    # `jitter` here is the *maximum* random offset APScheduler applies to
+    # each fire time on its own - not a value to pre-randomize ourselves.
     scheduler.add_job(
         run_all_enabled_providers,
         "interval",
         seconds=settings.ingestion_interval_seconds,
-        next_run_time=None,
-        jitter=int(jitter),
+        jitter=settings.ingestion_jitter_seconds,
         id="ingest_all_providers",
     )
     log_event(logger, 20, "worker starting", interval_seconds=settings.ingestion_interval_seconds)
+    run_all_enabled_providers()  # so data is available right after startup, not after a full interval
     scheduler.start()
 
 

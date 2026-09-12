@@ -35,7 +35,7 @@ jobs:
           python-version: "3.11"
           cache: "pip"
       - run: pip install -e ".[dev]"
-      - run: pytest tests/integration -q
+      - run: python -m pytest tests/integration -q
 
   migrations-postgres:
     name: Migrations from zero + upgrade (Postgres)
@@ -69,7 +69,7 @@ jobs:
       - name: Upgrade again
         run: alembic upgrade head
       - name: Run full test suite against Postgres
-        run: pytest tests -q
+        run: python -m pytest tests -q
 
   security-scans:
     name: Secret + dependency + SAST scans
@@ -89,7 +89,12 @@ jobs:
       - name: SAST (bandit)
         run: bandit -q -r app -x app/observability
       - name: Dependency vulnerability scan (pip-audit)
-        run: pip-audit --strict || true # advisory: does not block merge on transitive-only findings
+        # --skip-editable: our own local package isn't on PyPI. Not --strict:
+        # that flag fails on ANY skipped/unauditable package, which our own
+        # editable install always is - it would fail unconditionally, with
+        # or without a real vulnerability. Exit code already reflects real
+        # findings without it.
+        run: pip-audit --skip-editable
 
   docker-build:
     name: Reproducible Docker build

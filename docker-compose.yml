@@ -28,6 +28,16 @@ services:
         condition: service_healthy
     ports:
       - "8000:8000"
+    healthcheck:
+      # No curl in the slim image; the stdlib is enough. `service_started`
+      # (used by dependents below) only means the container process
+      # launched, not that migrations have actually finished - this
+      # healthcheck is what makes "wait for api" mean something real.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
 
   worker:
     build: ./backend
@@ -35,22 +45,30 @@ services:
       - .env
     environment:
       NEXORA_DATABASE_URL: ${NEXORA_DATABASE_URL:-postgresql+psycopg://nexora:change-me-locally@postgres:5432/nexora}
-      SKIP_MIGRATIONS: "1" # the api service already applies migrations on startup
+      SKIP_MIGRATIONS: "1" # safe only because we wait for api to be healthy (migrations done), not just started
+      SEED_DEMO_DATA: "0" # api is the single seeder; avoids a redundant (if harmless/idempotent) run here
     command: ["python", "-m", "app.worker.scheduler"]
+    ports:
+      - "9100:9100" # worker's own Prometheus /metrics - a separate process from the api
     depends_on:
       postgres:
         condition: service_healthy
       api:
-        condition: service_started
+        condition: service_healthy
 
   frontend:
-    build: ./frontend
-    environment:
-      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+    build:
+      context: ./frontend
+      args:
+        # Vite bakes VITE_* vars into the static bundle at build time, so
+        # this must be a build arg, not a runtime `environment:` entry -
+        # nginx serves pre-built static files and never reads env vars.
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
     ports:
       - "5173:80"
     depends_on:
-      - api
+      api:
+        condition: service_healthy
 
   # Local-only static file server exposing the committed test fixtures, so
   # the "demo" profile can seed providers that fetch synthetic content over

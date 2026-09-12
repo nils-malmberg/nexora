@@ -45,6 +45,14 @@ pointent dessus — aucune clé, aucun compte, aucun appel réseau réel.
 | `CIRCUIT_BREAKER_FAILURE_THRESHOLD` / `_RESET_SECONDS` | Disjoncteur par fournisseur | `5` / `300` |
 | `DEDUP_TITLE_SIMILARITY_THRESHOLD` / `_TIME_WINDOW_HOURS` | Seuils de déduplication approximative | `0.88` / `72` |
 | `DEFAULT_PAGE_SIZE` / `MAX_PAGE_SIZE` | Pagination API | `20` / `100` |
+| `CORS_ALLOWED_ORIGINS` | Origines autorisées (CSV) pour l'API lecture seule | `*` |
+| `WORKER_METRICS_PORT` | Port `/metrics` du worker — processus séparé de l'API, donc registre Prometheus séparé | `9100` |
+
+## Observabilité : deux endpoints `/metrics`
+
+L'API et le worker sont deux processus distincts avec chacun leur propre registre Prometheus en
+mémoire : `GET http://api:8000/metrics` ne voit **pas** les métriques d'ingestion produites par le worker.
+Configurer Prometheus pour scraper les deux cibles (`api:8000/metrics` et `worker:9100/metrics`).
 
 Aucun secret n'est jamais stocké en base ou dans un JSON versionné : la configuration d'un fournisseur
 (`Provider.config`) ne référence qu'un **nom de variable d'environnement** (ex. `env_var: "MON_API_KEY"`),
@@ -90,6 +98,10 @@ rate limit, timeout — voir les adaptateurs existants comme modèle).
   système d'authentification du dashboard complet (hors périmètre de ce module).
 - Pas de cache dédié (Redis) : la fraîcheur/staleness est calculée à la lecture à partir des timestamps
   persistés — suffisant au volume V1, documenté comme choix délibéré pour limiter l'infrastructure.
+- `npm audit` (frontend) signale une vulnérabilité modérée/haute dans esbuild, embarquée par Vite 5.x —
+  n'affecte que le serveur de développement (`vite dev`), jamais le build statique servi en production par
+  nginx. Un correctif complet nécessite un saut de version majeure de Vite (6/7/8, cassant) ; risque accepté
+  pour l'instant, à réévaluer lors d'une montée de version du frontend.
 
 ## Tests
 
