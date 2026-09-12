@@ -1,0 +1,17 @@
+title = "NeXora gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+  description = """
+  Known false positive: a fictional, secret-shaped string used only in our
+  own log-redaction unit test (backend/tests/unit/test_logging_redaction.py)
+  to prove that query-param secrets get scrubbed from log lines. It was
+  never a real credential and was never used against a live service -
+  see commit 0b1ae53 for context. Narrowly scoped to this exact string so
+  everything else is still scanned normally.
+  """
+  regexes = [
+    '''live_abc123secret''',
+  ]

@@ -1,0 +1,86 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-nexora}
+      POSTGRES_USER: ${POSTGRES_USER:-nexora}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-locally}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nexora}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: ./backend
+    env_file:
+      - .env
+    environment:
+      NEXORA_DATABASE_URL: ${NEXORA_DATABASE_URL:-postgresql+psycopg://nexora:change-me-locally@postgres:5432/nexora}
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-0}
+      DEMO_FIXTURES_BASE_URL: ${DEMO_FIXTURES_BASE_URL:-http://demo-fixtures:80}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    healthcheck:
+      # No curl in the slim image; the stdlib is enough. `service_started`
+      # (used by dependents below) only means the container process
+      # launched, not that migrations have actually finished - this
+      # healthcheck is what makes "wait for api" mean something real.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  worker:
+    build: ./backend
+    env_file:
+      - .env
+    environment:
+      NEXORA_DATABASE_URL: ${NEXORA_DATABASE_URL:-postgresql+psycopg://nexora:change-me-locally@postgres:5432/nexora}
+      SKIP_MIGRATIONS: "1" # safe only because we wait for api to be healthy (migrations done), not just started
+      SEED_DEMO_DATA: "0" # api is the single seeder; avoids a redundant (if harmless/idempotent) run here
+    command: ["python", "-m", "app.worker.scheduler"]
+    ports:
+      - "9100:9100" # worker's own Prometheus /metrics - a separate process from the api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Vite bakes VITE_* vars into the static bundle at build time, so
+        # this must be a build arg, not a runtime `environment:` entry -
+        # nginx serves pre-built static files and never reads env vars.
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+    ports:
+      - "5173:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+  # Local-only static file server exposing the committed test fixtures, so
+  # the "demo" profile can seed providers that fetch synthetic content over
+  # real HTTP without any external network access or account. Never used in
+  # production; see scripts/seed_demo.py.
+  demo-fixtures:
+    image: nginx:alpine
+    profiles: ["demo"]
+    volumes:
+      - ./backend/tests/fixtures:/usr/share/nginx/html:ro
+    ports:
+      - "8090:80"
+
+volumes:
+  postgres_data:

@@ -1,0 +1,62 @@
+[project]
+name = "nexora-news-events"
+version = "0.1.0"
+description = "News & events module for the NeXora investment dashboard"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.141,<0.142",
+    "uvicorn[standard]>=0.30,<0.31",
+    "sqlalchemy>=2.0,<2.1",
+    "alembic>=1.13,<1.14",
+    "psycopg[binary]>=3.1,<3.2",
+    "pydantic>=2.7,<3",
+    "pydantic-settings>=2.3,<3",
+    "httpx>=0.27,<0.28",
+    "feedparser>=6.0,<7",
+    "icalendar>=5.0,<6",
+    "apscheduler>=3.10,<3.11",
+    "prometheus-client>=0.20,<0.21",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.1,<10",
+    "pytest-asyncio>=0.23,<0.24",
+    "respx>=0.21,<0.22",
+    "freezegun>=1.5,<2",
+    "ruff>=0.5,<0.6",
+    "coverage>=7.5,<8",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+# `tests.conftest` and `scripts.*` are imported by full dotted path but are
+# not installed packages (only `app*` is - see packages.find above); without
+# this, bare `pytest` fails to resolve them while `python -m pytest` happens
+# to work only because `-m` itself inserts CWD onto sys.path. Making it
+# explicit here means either invocation works the same way everywhere (dev
+# machines and CI alike).
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E501"]
+"app/api/*" = ["B008"]  # FastAPI's Depends()/Query() are meant to be used as defaults
+
+[tool.coverage.run]
+source = ["app"]

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Exemple Emetteur</title>
+    <link>https://example-issuer.test/news</link>
+    <description>Flux sans date de publication sur un item</description>
+    <item>
+      <title>Communique sans date</title>
+      <link>https://example-issuer.test/news/no-date</link>
+      <guid>urn:example-issuer:no-date</guid>
+      <description>Ce communique ne porte aucune date de publication exploitable.</description>
+    </item>
+    <item>
+      <title>Communique avec date</title>
+      <link>https://example-issuer.test/news/with-date</link>
+      <guid>urn:example-issuer:with-date</guid>
+      <pubDate>Fri, 04 Sep 2026 10:00:00 +0000</pubDate>
+      <description>Ce communique porte une date de publication valide.</description>
+    </item>
+  </channel>
+</rss>
