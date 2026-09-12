@@ -141,6 +141,54 @@ export interface ProviderStatus {
   detail: string;
 }
 
+export type RowStatus = "valid" | "duplicate" | "error" | "inserted";
+
+export interface RowResult {
+  row_number: number;
+  status: RowStatus;
+  messages: string[];
+  canonical: Record<string, string | null> | null;
+}
+
+export type ImportJobStatus = "draft" | "previewed" | "committed";
+
+export interface ImportJobSummary {
+  id: string;
+  filename: string;
+  status: ImportJobStatus;
+  total_rows: number;
+  valid_count: number;
+  duplicate_count: number;
+  error_count: number;
+  inserted_count: number;
+  created_at: string;
+  previewed_at: string | null;
+  committed_at: string | null;
+}
+
+export interface ImportJob extends ImportJobSummary {
+  delimiter: string;
+  encoding: string;
+  column_mapping: Record<string, string>;
+  suggested_mapping: Record<string, string> | null;
+  headers: string[] | null;
+  sample_rows: Record<string, string>[] | null;
+  rows: RowResult[] | null;
+}
+
+export const CANONICAL_IMPORT_FIELDS = [
+  "date",
+  "type",
+  "symbol",
+  "asset_class",
+  "quantity",
+  "unit_price",
+  "currency",
+  "fees",
+  "account",
+  "external_id",
+] as const;
+
 export interface ExportData {
   user: User;
   portfolios: Portfolio[];

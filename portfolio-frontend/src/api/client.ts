@@ -2,6 +2,8 @@ import { getCsrfToken } from "../authStore";
 import type {
   AuthResponse,
   ExportData,
+  ImportJob,
+  ImportJobSummary,
   Instrument,
   Page,
   Portfolio,
@@ -184,6 +186,58 @@ export function createPrivateValuation(
     method: "POST",
     body: input,
   });
+}
+
+export async function uploadImport(portfolioId: string, file: File): Promise<ImportJob> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const csrfToken = getCsrfToken();
+  const headers: Record<string, string> = {};
+  if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+
+  // Not routed through request(): a FormData body must NOT get a manual
+  // Content-Type header - the browser sets its own (with the multipart
+  // boundary), which request()'s JSON-only Content-Type would break.
+  const response = await fetch(new URL(`/api/v1/portfolios/${portfolioId}/imports`, API_BASE_URL).toString(), {
+    method: "POST",
+    headers,
+    credentials: "include",
+    body: formData,
+  });
+  if (!response.ok) {
+    let message = `Erreur ${response.status}`;
+    try {
+      message = (await response.json()).message ?? message;
+    } catch {
+      // ignore body parse failure, keep default message
+    }
+    throw new ApiError(message, response.status);
+  }
+  return response.json() as Promise<ImportJob>;
+}
+
+export function listImports(portfolioId: string): Promise<ImportJobSummary[]> {
+  return request<ImportJobSummary[]>(`/api/v1/portfolios/${portfolioId}/imports`);
+}
+
+export function getImport(portfolioId: string, jobId: string): Promise<ImportJob> {
+  return request<ImportJob>(`/api/v1/portfolios/${portfolioId}/imports/${jobId}`);
+}
+
+export function previewImport(
+  portfolioId: string,
+  jobId: string,
+  columnMapping: Record<string, string>,
+  defaultTimezone = "UTC",
+): Promise<ImportJob> {
+  return request<ImportJob>(`/api/v1/portfolios/${portfolioId}/imports/${jobId}/preview`, {
+    method: "POST",
+    body: { column_mapping: columnMapping, default_timezone: defaultTimezone },
+  });
+}
+
+export function commitImport(portfolioId: string, jobId: string): Promise<ImportJob> {
+  return request<ImportJob>(`/api/v1/portfolios/${portfolioId}/imports/${jobId}/commit`, { method: "POST" });
 }
 
 export function getProvidersStatus(): Promise<ProviderStatus> {

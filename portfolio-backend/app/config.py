@@ -40,6 +40,13 @@ class Settings(BaseSettings):
     default_page_size: int = 20
     max_page_size: int = 100
 
+    # CSV import (specs/PORTFOLIO_IMPORTS.md: "limitation de taille/type").
+    # The raw file itself is never persisted (see app/domain/csv_import.py) —
+    # these bounds exist to keep in-memory parsing and the stored, structured
+    # row data cheap, not to protect a stored file.
+    csv_import_max_bytes: int = 2_000_000
+    csv_import_max_rows: int = 5_000
+
     log_level: str = "INFO"
     environment: str = "development"
 
