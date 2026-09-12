@@ -35,6 +35,7 @@ from app.adapters.common import (
     normalize_event_status,
     normalize_kind,
     normalize_title,
+    resolve_query_param_templates,
     truncate,
 )
 from app.utils.timeparse import parse_iso8601, parse_unix_timestamp
@@ -64,21 +65,29 @@ class JsonApiAdapter(ProviderAdapter):
             typical_rate_limit_per_minute=self.provider_config.get("rate_limit_per_minute", 60),
         )
 
-    def _auth_headers(self) -> dict:
+    def _auth_extras(self) -> tuple[dict, dict]:
+        """Returns (headers, query_params) to merge into the request. Some
+        real APIs authenticate via a query parameter rather than a header
+        (e.g. Finnhub's own OpenAPI spec declares `token` as
+        `{"type": "apiKey", "name": "token", "in": "query"}`) - `auth.in`
+        selects which, defaulting to "header" for backward compatibility."""
         auth = self.provider_config.get("auth")
         if not auth:
-            return {}
+            return {}, {}
         secret = self.resolve_secret(auth.get("env_var"))
         if secret is None:
-            return {}
+            return {}, {}
+        if auth.get("in", "header") == "query":
+            return {}, {auth.get("param", "token"): secret}
         header = auth.get("header", "Authorization")
         prefix = auth.get("prefix", "")
-        return {header: f"{prefix}{secret}"}
+        return {header: f"{prefix}{secret}"}, {}
 
     def _get(self, url: str, params: dict) -> dict:
         timeout = self.provider_config.get("timeout_seconds", 10.0)
+        auth_headers, auth_params = self._auth_extras()
         try:
-            response = httpx.get(url, params=params, headers=self._auth_headers(), timeout=timeout)
+            response = httpx.get(url, params={**params, **auth_params}, headers=auth_headers, timeout=timeout)
         except httpx.TimeoutException as exc:
             raise AdapterTimeout(f"timeout fetching {url}") from exc
         except httpx.HTTPError as exc:
@@ -115,7 +124,7 @@ class JsonApiAdapter(ProviderAdapter):
         pagination = self.provider_config.get("pagination", {})
         style = pagination.get("style", "none")
         items_path = pagination.get("items_path")
-        base_params = dict(feed_extra_config.get("query_params", {}))
+        base_params = resolve_query_param_templates(feed_extra_config.get("query_params", {}))
         bound_asset_id = feed_extra_config.get("asset_id")
 
         items: list[RawRecord] = []

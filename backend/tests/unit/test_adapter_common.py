@@ -7,6 +7,7 @@ from app.adapters.common import (
     normalize_event_status,
     normalize_kind,
     normalize_title,
+    resolve_query_param_templates,
     truncate,
 )
 
@@ -69,3 +70,21 @@ def test_truncate_strips_html_and_shortens():
 
 def test_truncate_none_stays_none():
     assert truncate(None, 100) is None
+
+
+def test_resolve_query_param_templates_today_and_offset():
+    now = datetime(2026, 9, 12, 15, 0, tzinfo=UTC)
+    resolved = resolve_query_param_templates({"to": "{{today}}", "from": "{{today-30d}}"}, now=now)
+    assert resolved == {"to": "2026-09-12", "from": "2026-08-13"}
+
+
+def test_resolve_query_param_templates_leaves_non_template_values_untouched():
+    now = datetime(2026, 9, 12, tzinfo=UTC)
+    resolved = resolve_query_param_templates({"symbol": "AAPL", "limit": 50}, now=now)
+    assert resolved == {"symbol": "AAPL", "limit": 50}
+
+
+def test_resolve_query_param_templates_ignores_lookalike_strings():
+    now = datetime(2026, 9, 12, tzinfo=UTC)
+    resolved = resolve_query_param_templates({"q": "today's news {{not-a-token}}"}, now=now)
+    assert resolved == {"q": "today's news {{not-a-token}}"}

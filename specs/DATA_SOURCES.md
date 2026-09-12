@@ -35,6 +35,7 @@ Sources réelles vérifiées (URL testée, licence et quotas confirmés à la so
 - **Authentification** : aucune, aucune inscription requise.
 - **Catégorie recommandée** : `reglementation` (fixée via `category_hint` sur le `ProviderFeed`, car le type de dépôt brut — 8-K, 10-Q, etc. — n'est pas une catégorie reconnue par le module).
 - **Confiance de base** : source primaire officielle — `base_confidence` élevé recommandé (0.9).
+- **⚠️ Constat opérationnel** : le domaine sec.gov est protégé par Akamai Bot Manager. Un test réel (User-Agent correct, en-têtes de type navigateur) a été bloqué (`403 "Your Request Originates from an Undeclared Automated Tool"`) malgré une politique écrite qui autorise l'accès automatisé. Ceci semble être une restriction technique (empreinte TLS/HTTP du client) indépendante de la conformité déclarative (User-Agent, cadence) — à tester depuis votre propre réseau avant de considérer la source pleinement opérationnelle. La légalité de la source n'est pas remise en cause, seule son accessibilité technique immédiate l'est.
 
 ### Finnhub — actualités par société (adaptateur `json_api`)
 
@@ -45,6 +46,9 @@ Sources réelles vérifiées (URL testée, licence et quotas confirmés à la so
 - **Catégorie** : laissée au mapping par défaut (`autre`) sauf configuration contraire ; pas de champ catégorie fiable dans la réponse standard.
 - **Confiance de base** : agrégateur tiers — `base_confidence` modéré recommandé (0.6).
 - **Format de date** : `CompanyNews.datetime` est un timestamp Unix (entier), confirmé par le schéma OpenAPI officiel (`https://finnhub.io/static/swagger.json`), pas une chaîne ISO 8601. Nécessite `provider_config.timestamp_format: "unix_seconds"` (ajouté à `app/adapters/json_api.py` — voir tests dans `tests/integration/test_json_adapter.py`).
+- **Fenêtre de dates glissante** : l'endpoint exige `from`/`to` ; `{{today}}` / `{{today-Nd}}` dans `query_params` sont résolus à chaque appel (`resolve_query_param_templates`) pour rester à jour sans reconfiguration périodique.
+- **Authentification réelle** : paramètre de requête `token`, confirmé par `securityDefinitions` du schéma OpenAPI (`"in": "query"`, pas un en-tête). L'adaptateur supporte désormais `auth.in: "query"`.
+- **⚠️ Constat opérationnel** : la clé fournie lors de la configuration initiale a été testée en direct (requête réelle, en dehors de l'application) et retourne `401 Invalid API key`, avec les deux mécanismes d'authentification. Vérifier la clé sur finnhub.io (Dashboard → API Keys) et la remplacer dans `.env`.
 
 ### Calendrier ICS — aucune source retenue pour l'instant
 

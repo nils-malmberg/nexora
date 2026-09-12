@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import re
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 ALLOWED_CATEGORIES = {
@@ -75,6 +75,27 @@ def compute_content_hash(provider_id: str, canonical_url: str, title: str, event
         ]
     )
     return hashlib.sha256(basis.encode("utf-8")).hexdigest()
+
+
+_TODAY_TOKEN_RE = re.compile(r"^\{\{today(?:-(\d+)d)?\}\}$")
+
+
+def resolve_query_param_templates(params: dict, now: datetime | None = None) -> dict:
+    """Resolves `{{today}}` / `{{today-Nd}}` string values to a `YYYY-MM-DD`
+    date, so a feed's static query_params (e.g. a news API's required
+    `from`/`to` range) stay current on every fetch instead of being frozen
+    to whatever date the ProviderFeed was created on. Non-matching values
+    pass through unchanged."""
+    now = now or datetime.now(UTC)
+    resolved = {}
+    for key, value in params.items():
+        match = _TODAY_TOKEN_RE.match(value) if isinstance(value, str) else None
+        if match:
+            offset_days = int(match.group(1)) if match.group(1) else 0
+            resolved[key] = (now - timedelta(days=offset_days)).strftime("%Y-%m-%d")
+        else:
+            resolved[key] = value
+    return resolved
 
 
 def truncate(text: str | None, max_len: int) -> str | None:

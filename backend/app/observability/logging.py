@@ -11,12 +11,22 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import sys
 from datetime import UTC, datetime
 
 _REDACT_SUBSTRINGS = ("authorization", "api_key", "apikey", "token", "password", "secret", "cookie")
 _TRUNCATE_KEYS = {"title", "excerpt", "summary", "content", "raw", "body", "raw_meta"}
 _TRUNCATE_LEN = 120
+
+# Query-param secrets (e.g. Finnhub's `?token=...`) end up in the URL a
+# library like httpx logs by default - `_sanitize()` below only covers our
+# own structured `fields`, not a raw message string, so this is a second,
+# independent layer scrubbing any `key=value` pair whose key looks like a
+# credential, wherever it appears in the rendered message.
+_MESSAGE_SECRET_RE = re.compile(
+    r"(?i)\b(" + "|".join(_REDACT_SUBSTRINGS) + r")=([^&\s\"']+)",
+)
 
 
 def _sanitize(fields: dict) -> dict:
@@ -32,13 +42,17 @@ def _sanitize(fields: dict) -> dict:
     return sanitized
 
 
+def _sanitize_message(message: str) -> str:
+    return _MESSAGE_SECRET_RE.sub(lambda m: f"{m.group(1)}=***redacted***", message)
+
+
 class JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         payload = {
             "timestamp": datetime.now(UTC).isoformat(),
             "level": record.levelname,
             "logger": record.name,
-            "message": record.getMessage(),
+            "message": _sanitize_message(record.getMessage()),
         }
         fields = getattr(record, "fields", None)
         if fields:
@@ -52,6 +66,13 @@ def configure_logging(level: str = "INFO") -> None:
     root = logging.getLogger()
     root.handlers = [handler]
     root.setLevel(level)
+    # httpx/httpcore log every request at INFO, including the full URL -
+    # for query-param auth (see app/adapters/json_api.py) that URL contains
+    # the resolved secret. _sanitize_message() is a second safety net, but
+    # there is no reason to keep this noisy, redundant per-request logging
+    # at all: our own ingestion logs already capture what matters.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 
 def get_logger(name: str) -> logging.Logger:

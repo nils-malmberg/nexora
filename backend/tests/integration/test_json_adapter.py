@@ -1,4 +1,5 @@
 import json
+from datetime import UTC, datetime
 
 import httpx
 import pytest
@@ -106,6 +107,18 @@ def test_missing_auth_env_var_raises_misconfigured_rather_than_silently_unauthen
 
 
 @respx.mock
+def test_auth_query_param_resolved_from_env_var(monkeypatch):
+    """Some APIs (e.g. Finnhub, per its own OpenAPI spec) authenticate via a
+    query parameter rather than a header."""
+    monkeypatch.setenv("DEMO_NEWS_API_KEY", "s3cr3t")
+    route = respx.get(API_URL).mock(return_value=httpx.Response(200, json=_page("page2.json")))
+    adapter = _adapter({"auth": {"in": "query", "param": "token", "env_var": "DEMO_NEWS_API_KEY"}})
+    adapter.fetch(API_URL, {}, since=None)
+    sent_request = route.calls.last.request
+    assert dict(sent_request.url.params)["token"] == "s3cr3t"
+
+
+@respx.mock
 def test_health_reports_ok_and_failure():
     respx.get(API_URL).mock(return_value=httpx.Response(200, json=_page("page2.json")))
     assert _adapter().health(API_URL, {}).ok is True
@@ -152,6 +165,20 @@ def test_unix_timestamp_format_parses_finnhub_shaped_response():
     assert normalized.publication_at.year == 2026
     assert normalized.publication_at.month == 9
     assert normalized.publication_at.day == 1
+
+
+@respx.mock
+def test_rolling_date_query_params_are_resolved_at_fetch_time():
+    """A feed's query_params can use {{today}}/{{today-Nd}} so a fixed
+    ProviderFeed config (e.g. Finnhub's required from/to range) stays
+    current on every scheduled sync instead of being frozen to whatever
+    date the feed was created on."""
+    route = respx.get(API_URL).mock(return_value=httpx.Response(200, json=_page("page2.json")))
+    adapter = _adapter()
+    adapter.fetch(API_URL, {"query_params": {"symbol": "AAPL", "to": "{{today}}", "from": "{{today-30d}}"}}, since=None)
+    sent_params = dict(route.calls.last.request.url.params)
+    assert sent_params["symbol"] == "AAPL"
+    assert sent_params["to"] == datetime.now(UTC).strftime("%Y-%m-%d")
 
 
 @respx.mock
