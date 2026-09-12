@@ -1,0 +1,27 @@
+{
+  "data": {
+    "items": [
+      {
+        "id": "missing-title",
+        "headline": "",
+        "link": "https://example-news-api.test/articles/missing-title",
+        "excerpt": "Cet enregistrement ne comporte pas de titre exploitable.",
+        "published_at": "2026-09-07T08:00:00Z",
+        "category": "autre",
+        "lang": "fr",
+        "ticker": "DEMO"
+      },
+      {
+        "id": "valid-item",
+        "headline": "Annonce valide malgre un enregistrement voisin incomplet",
+        "link": "https://example-news-api.test/articles/valid-item",
+        "excerpt": "Cette annonce est complete et doit etre traitee normalement.",
+        "published_at": "2026-09-07T08:05:00Z",
+        "category": "autre",
+        "lang": "fr",
+        "ticker": "DEMO"
+      }
+    ],
+    "has_more": false
+  }
+}

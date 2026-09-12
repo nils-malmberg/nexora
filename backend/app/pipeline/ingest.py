@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 import time
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
@@ -60,7 +60,11 @@ logger = get_logger(__name__)
 
 def _circuit_allows(provider: Provider, now: datetime) -> bool:
     if provider.circuit_state == "open":
-        if provider.last_attempt_at and (now - provider.last_attempt_at).total_seconds() >= settings.circuit_breaker_reset_seconds:
+        reset_due = (
+            provider.last_attempt_at
+            and (now - provider.last_attempt_at).total_seconds() >= settings.circuit_breaker_reset_seconds
+        )
+        if reset_due:
             provider.circuit_state = "half_open"
             return True
         return False
@@ -77,7 +81,8 @@ def _record_success(provider: Provider, now: datetime) -> None:
 def _record_failure(provider: Provider, now: datetime) -> None:
     provider.consecutive_failures += 1
     provider.last_attempt_at = now
-    if provider.consecutive_failures >= settings.circuit_breaker_failure_threshold or provider.circuit_state == "half_open":
+    threshold_reached = provider.consecutive_failures >= settings.circuit_breaker_failure_threshold
+    if threshold_reached or provider.circuit_state == "half_open":
         provider.circuit_state = "open"
 
 
@@ -176,7 +181,7 @@ def _upsert_news_item(db: Session, run_id: str, normalized: NormalizedNewsItem, 
             provenance_confidence=item.confidence,
             corroboration_count=corroboration_count,
             reference_at=item.event_at or item.publication_at,
-            now=datetime.now(timezone.utc),
+            now=datetime.now(UTC),
         )
     )
     item.relevance_score = score
@@ -196,7 +201,7 @@ def _upsert_event(db: Session, normalized: NormalizedEvent, counts: dict) -> Non
         starts_at=normalized.starts_at,
         period_label=normalized.period_label,
     )
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     if existing is None:
         event = Event(
@@ -216,7 +221,11 @@ def _upsert_event(db: Session, normalized: NormalizedEvent, counts: dict) -> Non
         db.add(event)
         db.flush()
         db.add(EventSource(event_id=event.id, url=normalized.source_url, citation=normalized.citation))
-        db.add(EventStatusHistory(event_id=event.id, old_status=None, new_status=normalized.status, source_url=normalized.source_url))
+        db.add(
+            EventStatusHistory(
+                event_id=event.id, old_status=None, new_status=normalized.status, source_url=normalized.source_url
+            )
+        )
         counts["event_inserted"] += 1
         return
 
@@ -244,7 +253,7 @@ def _upsert_event(db: Session, normalized: NormalizedEvent, counts: dict) -> Non
 
 
 def run_provider(db: Session, provider: Provider) -> IngestionRun:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     run = IngestionRun(id=new_id(), provider_id=provider.id, started_at=now, status="running", counts={})
     db.add(run)
     db.flush()
@@ -252,15 +261,21 @@ def run_provider(db: Session, provider: Provider) -> IngestionRun:
     if not provider.enabled:
         run.status = "failed"
         run.error_code = "provider_disabled"
-        run.ended_at = datetime.now(timezone.utc)
+        run.ended_at = datetime.now(UTC)
         db.commit()
         return run
 
     if not _circuit_allows(provider, now):
         run.status = "failed"
         run.error_code = "circuit_open"
-        run.ended_at = datetime.now(timezone.utc)
-        log_event(logger, logging.WARNING, "ingestion skipped: circuit open", provider_id=provider.id, ingestion_run_id=run.id)
+        run.ended_at = datetime.now(UTC)
+        log_event(
+            logger,
+            logging.WARNING,
+            "ingestion skipped: circuit open",
+            provider_id=provider.id,
+            ingestion_run_id=run.id,
+        )
         db.commit()
         return run
 
@@ -316,7 +331,9 @@ def run_provider(db: Session, provider: Provider) -> IngestionRun:
             except Exception:
                 savepoint.rollback()
                 counts["record_errors"] += 1
-                logger.exception("unexpected error persisting one record", extra={"fields": {"provider_id": provider.id}})
+                logger.exception(
+                    "unexpected error persisting one record", extra={"fields": {"provider_id": provider.id}}
+                )
 
     latency = time.monotonic() - started
     ingestion_latency_seconds.labels(provider_id=provider.id).observe(latency)
@@ -338,7 +355,7 @@ def run_provider(db: Session, provider: Provider) -> IngestionRun:
     ingestion_runs_total.labels(provider_id=provider.id, status=run.status).inc()
 
     run.counts = dict(counts)
-    run.ended_at = datetime.now(timezone.utc)
+    run.ended_at = datetime.now(UTC)
     run.latency_ms = int(latency * 1000)
     db.commit()
     return run

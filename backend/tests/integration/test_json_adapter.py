@@ -1,0 +1,139 @@
+import json
+
+import httpx
+import pytest
+import respx
+
+from app.adapters.base import AdapterMisconfigured, AdapterParseError, AdapterRateLimited
+from app.adapters.json_api import JsonApiAdapter
+from tests.conftest import FIXTURES_DIR
+
+API_URL = "https://example-news-api.test/v1/articles"
+
+MAPPING = {
+    "external_id": "id",
+    "title": "headline",
+    "url": "link",
+    "summary": "excerpt",
+    "published_at": "published_at",
+    "category": "category",
+    "language": "lang",
+    "asset_symbol": "ticker",
+}
+PAGINATION = {
+    "style": "page",
+    "param": "page",
+    "start": 1,
+    "items_path": "data.items",
+    "has_more_path": "data.has_more",
+}
+
+
+def _page(name: str) -> dict:
+    return json.loads((FIXTURES_DIR / "json_api" / name).read_text())
+
+
+def _adapter(extra_config: dict | None = None) -> JsonApiAdapter:
+    return JsonApiAdapter(
+        provider_id="prov-json",
+        provider_config={"mapping": MAPPING, "pagination": PAGINATION, **(extra_config or {})},
+    )
+
+
+@respx.mock
+def test_fetch_follows_pagination_until_has_more_false():
+    route = respx.get(API_URL)
+    route.side_effect = [
+        httpx.Response(200, json=_page("page1.json")),
+        httpx.Response(200, json=_page("page2.json")),
+    ]
+    result = _adapter().fetch(API_URL, {}, since=None)
+    assert len(result.items) == 2
+    assert route.call_count == 2
+
+
+@respx.mock
+def test_fetch_raises_rate_limited():
+    respx.get(API_URL).mock(return_value=httpx.Response(429, headers={"Retry-After": "5"}))
+    with pytest.raises(AdapterRateLimited):
+        _adapter().fetch(API_URL, {}, since=None)
+
+
+@respx.mock
+def test_fetch_raises_parse_error_on_invalid_json():
+    respx.get(API_URL).mock(return_value=httpx.Response(200, content=b"not json"))
+    with pytest.raises(AdapterParseError):
+        _adapter().fetch(API_URL, {}, since=None)
+
+
+@respx.mock
+def test_normalize_skips_record_missing_title_but_keeps_others():
+    respx.get(API_URL).mock(return_value=httpx.Response(200, json=_page("incomplete.json")))
+    adapter = _adapter()
+    result = adapter.fetch(API_URL, {}, since=None)
+    normalized = []
+    skipped = 0
+    for record in result.items:
+        try:
+            normalized.append(adapter.normalize(record))
+        except AdapterParseError:
+            skipped += 1
+    assert skipped == 1
+    assert len(normalized) == 1
+    assert "malgre" in normalized[0].title.lower()
+
+
+def test_missing_mapping_is_misconfigured():
+    adapter = JsonApiAdapter(provider_id="prov-json", provider_config={})
+    with pytest.raises(AdapterMisconfigured):
+        adapter.fetch(API_URL, {}, since=None)
+
+
+@respx.mock
+def test_auth_header_resolved_from_env_var(monkeypatch):
+    monkeypatch.setenv("DEMO_NEWS_API_KEY", "s3cr3t")
+    route = respx.get(API_URL).mock(return_value=httpx.Response(200, json=_page("page2.json")))
+    adapter = _adapter({"auth": {"header": "Authorization", "env_var": "DEMO_NEWS_API_KEY", "prefix": "Bearer "}})
+    adapter.fetch(API_URL, {}, since=None)
+    sent_request = route.calls.last.request
+    assert sent_request.headers["Authorization"] == "Bearer s3cr3t"
+
+
+def test_missing_auth_env_var_raises_misconfigured_rather_than_silently_unauthenticated():
+    adapter = _adapter({"auth": {"header": "Authorization", "env_var": "NOT_SET_ENV_VAR"}})
+    with pytest.raises(AdapterMisconfigured):
+        adapter.fetch(API_URL, {}, since=None)
+
+
+@respx.mock
+def test_health_reports_ok_and_failure():
+    respx.get(API_URL).mock(return_value=httpx.Response(200, json=_page("page2.json")))
+    assert _adapter().health(API_URL, {}).ok is True
+
+    respx.get(API_URL).mock(return_value=httpx.Response(503))
+    assert _adapter().health(API_URL, {}).ok is False
+
+
+@respx.mock
+def test_fetch_raises_timeout():
+    from app.adapters.base import AdapterTimeout
+
+    respx.get(API_URL).mock(side_effect=httpx.TimeoutException("timed out"))
+    with pytest.raises(AdapterTimeout):
+        _adapter().fetch(API_URL, {}, since=None)
+
+
+@respx.mock
+def test_event_content_type_requires_event_date_or_period():
+    adapter = JsonApiAdapter(
+        provider_id="prov-json-events",
+        provider_config={
+            "content_type": "event",
+            "mapping": {**MAPPING, "event_at": "event_date"},
+            "pagination": PAGINATION,
+        },
+    )
+    respx.get(API_URL).mock(return_value=httpx.Response(200, json=_page("page2.json")))  # no event_date field
+    result = adapter.fetch(API_URL, {}, since=None)
+    with pytest.raises(AdapterParseError):
+        adapter.normalize(result.items[0])

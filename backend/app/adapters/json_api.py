@@ -8,7 +8,7 @@ alone. Supports either `content_type: news` or `content_type: event`.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -86,7 +86,9 @@ class JsonApiAdapter(ProviderAdapter):
 
         if response.status_code == 429:
             retry_after = response.headers.get("Retry-After")
-            raise AdapterRateLimited(f"rate limited by {url}", retry_after_seconds=float(retry_after) if retry_after else None)
+            raise AdapterRateLimited(
+                f"rate limited by {url}", retry_after_seconds=float(retry_after) if retry_after else None
+            )
         if response.status_code >= 400:
             raise AdapterHTTPError(f"HTTP {response.status_code} fetching {url}", status_code=response.status_code)
         try:
@@ -161,7 +163,7 @@ class JsonApiAdapter(ProviderAdapter):
             else:
                 break
 
-        return RawFetchResult(items=items, fetched_at=datetime.now())
+        return RawFetchResult(items=items)
 
     def normalize(self, record: RawRecord) -> NormalizedNewsItem | NormalizedEvent:
         if not record.title:
@@ -188,7 +190,6 @@ class JsonApiAdapter(ProviderAdapter):
                 citation=f"{title} — {domain}",
                 content_hash=compute_content_hash(self.provider_id, canonical_url, title, record.event_at),
                 asset_hint=record.asset_hint,
-                asset_match_method="explicit" if record.asset_hint else "unmatched",
                 asset_match_confidence=1.0 if record.asset_hint else 0.0,
             )
 
@@ -211,7 +212,6 @@ class JsonApiAdapter(ProviderAdapter):
             language=record.language,
             content_hash=compute_content_hash(self.provider_id, canonical_url, title, record.event_at),
             asset_hint=record.asset_hint,
-            asset_match_method="explicit" if record.asset_hint else "keyword",
             asset_match_confidence=1.0 if record.asset_hint else 0.5,
             raw_meta=record.raw,
         )
@@ -221,10 +221,10 @@ class JsonApiAdapter(ProviderAdapter):
         try:
             self._get(feed_url, dict(feed_extra_config.get("query_params", {})))
         except Exception as exc:  # noqa: BLE001
-            return HealthStatus(ok=False, checked_at=datetime.now(), latency_ms=None, message=str(exc))
+            return HealthStatus(ok=False, checked_at=datetime.now(UTC), latency_ms=None, message=str(exc))
         return HealthStatus(
             ok=True,
-            checked_at=datetime.now(),
+            checked_at=datetime.now(UTC),
             latency_ms=(datetime.now() - started).total_seconds() * 1000,
             message="ok",
         )

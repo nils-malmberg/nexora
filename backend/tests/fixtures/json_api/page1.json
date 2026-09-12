@@ -1,0 +1,17 @@
+{
+  "data": {
+    "items": [
+      {
+        "id": "abc123",
+        "headline": "La banque centrale releve ses taux directeurs",
+        "link": "https://example-news-api.test/articles/abc123",
+        "excerpt": "La banque centrale a annonce une hausse de 25 points de base de son principal taux directeur, invoquant des pressions inflationnistes persistantes. Les marches obligataires ont reagi immediatement. Les analystes anticipent une pause au prochain trimestre.",
+        "published_at": "2026-09-05T12:00:00Z",
+        "category": "macro",
+        "lang": "fr",
+        "ticker": "DEMO"
+      }
+    ],
+    "has_more": true
+  }
+}

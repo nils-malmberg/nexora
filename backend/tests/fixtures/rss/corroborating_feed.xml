@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Agence de presse independante</title>
+    <link>https://example-media.test/news</link>
+    <description>Couverture des marches</description>
+    <language>fr</language>
+    <item>
+      <title>Resultats du troisieme trimestre publies</title>
+      <link>https://example-media.test/articles/q3-coverage</link>
+      <guid>urn:example-media:q3-2026</guid>
+      <pubDate>Tue, 01 Sep 2026 08:15:00 +0000</pubDate>
+      <description>Selon des documents publies ce jour, la societe a vu son chiffre d'affaires progresser au troisieme trimestre.</description>
+      <category>resultats</category>
+    </item>
+  </channel>
+</rss>

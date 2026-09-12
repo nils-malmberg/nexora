@@ -14,12 +14,11 @@ SQLite-based test suite (see specs/ARCHITECTURE.md and specs/TESTING.md).
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import (
     JSON,
     CheckConstraint,
-    DateTime,
     Float,
     ForeignKey,
     Index,
@@ -30,7 +29,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db import Base
+from app.db import Base, UTCDateTime
 
 JSONType = JSON().with_variant(JSONB(), "postgresql")
 
@@ -40,7 +39,7 @@ def new_id() -> str:
 
 
 def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class Asset(Base):
@@ -55,7 +54,7 @@ class Asset(Base):
     isin: Mapped[str | None] = mapped_column(String(20), nullable=True)
     market: Mapped[str | None] = mapped_column(String(40), nullable=True)
     currency: Mapped[str | None] = mapped_column(String(8), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
 
     __table_args__ = (UniqueConstraint("symbol", "market", name="uq_asset_symbol_market"),)
 
@@ -77,14 +76,14 @@ class Provider(Base):
 
     # Health / circuit-breaker state (small enough to live on the row; see
     # app/pipeline/ingest.py for how it is updated).
-    last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_attempt_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    last_success_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     consecutive_failures: Mapped[int] = mapped_column(default=0)
     circuit_state: Mapped[str] = mapped_column(String(12), default="closed")  # closed|open|half_open
 
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
 
-    feeds: Mapped[list["ProviderFeed"]] = relationship(back_populates="provider", cascade="all, delete-orphan")
+    feeds: Mapped[list[ProviderFeed]] = relationship(back_populates="provider", cascade="all, delete-orphan")
 
     __table_args__ = (
         CheckConstraint("type in ('rss','json_api','calendar_ics')", name="ck_provider_type"),
@@ -122,8 +121,8 @@ class NewsItem(Base):
     excerpt: Mapped[str | None] = mapped_column(String(2000), nullable=True)
     summary: Mapped[str | None] = mapped_column(String(2000), nullable=True)
 
-    publication_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    event_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    publication_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    event_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     timezone: Mapped[str] = mapped_column(String(64), default="UTC")
 
     url: Mapped[str] = mapped_column(String(1000))
@@ -135,8 +134,8 @@ class NewsItem(Base):
     relevance_breakdown: Mapped[dict] = mapped_column(JSONType, default=dict)
 
     language: Mapped[str | None] = mapped_column(String(8), nullable=True)
-    collected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+    collected_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow, onupdate=utcnow)
 
     freshness_at_collection: Mapped[str] = mapped_column(String(12), default="unknown")
     verification_status: Mapped[str] = mapped_column(String(16), default="unverified")
@@ -144,7 +143,7 @@ class NewsItem(Base):
     content_hash: Mapped[str] = mapped_column(String(64), index=True)
     raw_meta: Mapped[dict] = mapped_column(JSONType, default=dict)
 
-    asset_links: Mapped[list["NewsItemAsset"]] = relationship(
+    asset_links: Mapped[list[NewsItemAsset]] = relationship(
         back_populates="news_item", cascade="all, delete-orphan"
     )
 
@@ -189,7 +188,7 @@ class NewsItemRelation(Base):
     news_item_id: Mapped[str] = mapped_column(ForeignKey("news_items.id", ondelete="CASCADE"))
     related_news_item_id: Mapped[str] = mapped_column(ForeignKey("news_items.id", ondelete="CASCADE"))
     relation_type: Mapped[str] = mapped_column(String(16))  # duplicate_of | corroborates
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
 
     __table_args__ = (
         CheckConstraint("relation_type in ('duplicate_of','corroborates')", name="ck_relation_type"),
@@ -205,7 +204,7 @@ class Event(Base):
     provider_id: Mapped[str] = mapped_column(ForeignKey("providers.id"))
 
     type: Mapped[str] = mapped_column(String(40))
-    starts_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    starts_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     period_label: Mapped[str | None] = mapped_column(String(40), nullable=True)
     timezone: Mapped[str] = mapped_column(String(64), default="UTC")
     status: Mapped[str] = mapped_column(String(16), default="unknown")
@@ -213,15 +212,15 @@ class Event(Base):
     amount: Mapped[float | None] = mapped_column(Numeric(20, 6), nullable=True)
     currency: Mapped[str | None] = mapped_column(String(8), nullable=True)
 
-    last_verified_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    collected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+    last_verified_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+    collected_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow, onupdate=utcnow)
 
     content_hash: Mapped[str] = mapped_column(String(64), index=True)
 
     asset: Mapped[Asset] = relationship()
-    sources: Mapped[list["EventSource"]] = relationship(back_populates="event", cascade="all, delete-orphan")
-    status_history: Mapped[list["EventStatusHistory"]] = relationship(
+    sources: Mapped[list[EventSource]] = relationship(back_populates="event", cascade="all, delete-orphan")
+    status_history: Mapped[list[EventStatusHistory]] = relationship(
         back_populates="event", cascade="all, delete-orphan", order_by="EventStatusHistory.changed_at"
     )
 
@@ -240,7 +239,7 @@ class EventSource(Base):
     event_id: Mapped[str] = mapped_column(ForeignKey("events.id", ondelete="CASCADE"))
     url: Mapped[str] = mapped_column(String(1000))
     citation: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    retrieved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    retrieved_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
     is_primary: Mapped[bool] = mapped_column(default=True)
 
     event: Mapped[Event] = relationship(back_populates="sources")
@@ -253,7 +252,7 @@ class EventStatusHistory(Base):
     event_id: Mapped[str] = mapped_column(ForeignKey("events.id", ondelete="CASCADE"))
     old_status: Mapped[str | None] = mapped_column(String(16), nullable=True)
     new_status: Mapped[str] = mapped_column(String(16))
-    changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    changed_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
     source_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
 
     event: Mapped[Event] = relationship(back_populates="status_history")
@@ -264,8 +263,8 @@ class IngestionRun(Base):
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
     provider_id: Mapped[str] = mapped_column(ForeignKey("providers.id"))
-    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    started_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+    ended_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     status: Mapped[str] = mapped_column(String(12), default="running")  # running|success|partial|failed
     counts: Mapped[dict] = mapped_column(JSONType, default=dict)
     error_code: Mapped[str | None] = mapped_column(String(60), nullable=True)

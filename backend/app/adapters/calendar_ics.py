@@ -10,7 +10,7 @@ guessed. All-day entries (date only, no time) keep the date as
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from urllib.parse import urlsplit
 
 import httpx
@@ -34,6 +34,11 @@ from app.utils.timeparse import to_utc
 _STATUS_MAP = {"CONFIRMED": "confirme", "TENTATIVE": "previsionnel", "CANCELLED": "annule"}
 
 
+def _prop(component, name: str) -> str | None:
+    value = component.get(name)
+    return str(value) if value else None
+
+
 class CalendarIcsAdapter(ProviderAdapter):
     @property
     def capabilities(self) -> AdapterCapabilities:
@@ -55,7 +60,9 @@ class CalendarIcsAdapter(ProviderAdapter):
 
         if response.status_code == 429:
             retry_after = response.headers.get("Retry-After")
-            raise AdapterRateLimited(f"rate limited by {url}", retry_after_seconds=float(retry_after) if retry_after else None)
+            raise AdapterRateLimited(
+                f"rate limited by {url}", retry_after_seconds=float(retry_after) if retry_after else None
+            )
         if response.status_code >= 400:
             raise AdapterHTTPError(f"HTTP {response.status_code} fetching {url}", status_code=response.status_code)
         return response.content
@@ -76,32 +83,32 @@ class CalendarIcsAdapter(ProviderAdapter):
             if dtstart is not None:
                 value = dtstart.dt
                 if isinstance(value, datetime):
-                    event_at = to_utc(value) if value.tzinfo else value.replace(tzinfo=timezone.utc)
+                    event_at = to_utc(value) if value.tzinfo else value.replace(tzinfo=UTC)
                 elif isinstance(value, date):
                     period_label = value.isoformat()
 
             if since is not None and event_at is not None and event_at <= since:
                 continue
 
-            amount_raw = component.get("x-nexora-amount")
+            amount_raw = _prop(component, "x-nexora-amount")
+            uid = _prop(component, "uid")
             items.append(
                 RawRecord(
-                    external_id=str(component.get("uid")) if component.get("uid") else None,
+                    external_id=uid,
                     title=str(component.get("summary", "")).strip(),
-                    url=str(component.get("url")) if component.get("url") else feed_url,
-                    summary=str(component.get("description")) if component.get("description") else None,
+                    url=_prop(component, "url") or feed_url,
+                    summary=_prop(component, "description"),
                     event_at=event_at,
                     event_period_label=period_label,
-                    event_type_hint=str(component.get("x-nexora-event-type")) if component.get("x-nexora-event-type") else None,
-                    event_status_hint=str(component.get("status")) if component.get("status") else None,
-                    amount_hint=float(str(amount_raw)) if amount_raw else None,
-                    currency_hint=str(component.get("x-nexora-currency")) if component.get("x-nexora-currency") else None,
-                    asset_hint=bound_asset_id
-                    or (str(component.get("x-nexora-asset-symbol")) if component.get("x-nexora-asset-symbol") else None),
-                    raw={"uid": str(component.get("uid")) if component.get("uid") else None},
+                    event_type_hint=_prop(component, "x-nexora-event-type"),
+                    event_status_hint=_prop(component, "status"),
+                    amount_hint=float(amount_raw) if amount_raw else None,
+                    currency_hint=_prop(component, "x-nexora-currency"),
+                    asset_hint=bound_asset_id or _prop(component, "x-nexora-asset-symbol"),
+                    raw={"uid": uid},
                 )
             )
-        return RawFetchResult(items=items, fetched_at=datetime.now())
+        return RawFetchResult(items=items)
 
     def normalize(self, record: RawRecord) -> NormalizedEvent:
         if not record.title:
@@ -130,7 +137,6 @@ class CalendarIcsAdapter(ProviderAdapter):
             citation=f"{title} — {domain}",
             content_hash=compute_content_hash(self.provider_id, canonical_url, title, record.event_at),
             asset_hint=record.asset_hint,
-            asset_match_method="explicit" if record.asset_hint else "unmatched",
             asset_match_confidence=1.0 if record.asset_hint else 0.0,
         )
 
@@ -139,10 +145,10 @@ class CalendarIcsAdapter(ProviderAdapter):
         try:
             self._get(feed_url)
         except Exception as exc:  # noqa: BLE001
-            return HealthStatus(ok=False, checked_at=datetime.now(), latency_ms=None, message=str(exc))
+            return HealthStatus(ok=False, checked_at=datetime.now(UTC), latency_ms=None, message=str(exc))
         return HealthStatus(
             ok=True,
-            checked_at=datetime.now(),
+            checked_at=datetime.now(UTC),
             latency_ms=(datetime.now() - started).total_seconds() * 1000,
             message="ok",
         )

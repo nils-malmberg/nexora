@@ -72,7 +72,6 @@ class RawRecord:
 @dataclass
 class RawFetchResult:
     items: list[RawRecord]
-    fetched_at: datetime
     next_cursor: str | None = None
 
 
@@ -97,7 +96,6 @@ class NormalizedNewsItem:
     # resolution against the Asset table happens in the pipeline, which is
     # the only layer with DB access (see app/pipeline/ingest.py).
     asset_hint: str | None
-    asset_match_method: str
     asset_match_confidence: float
     raw_meta: dict
 
@@ -116,7 +114,6 @@ class NormalizedEvent:
     citation: str | None
     content_hash: str
     asset_hint: str | None
-    asset_match_method: str
     asset_match_confidence: float
 
 

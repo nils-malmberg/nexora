@@ -24,7 +24,12 @@ class RetriesExhausted(Exception):
         self.last_error = last_error
 
 
-def call_with_retries(fn: Callable[[], T], *, max_retries: int | None = None, sleep: Callable[[float], None] = time.sleep) -> T:
+def call_with_retries(
+    fn: Callable[[], T],
+    *,
+    max_retries: int | None = None,
+    sleep: Callable[[float], None] = time.sleep,
+) -> T:
     max_retries = settings.max_retries if max_retries is None else max_retries
     attempt = 0
     while True:

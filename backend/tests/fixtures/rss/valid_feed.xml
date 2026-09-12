@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Exemple Émetteur — Actualités</title>
+    <link>https://example-issuer.test/news</link>
+    <description>Flux de presse officiel</description>
+    <language>fr</language>
+    <item>
+      <title>Résultats du troisième trimestre publiés</title>
+      <link>https://example-issuer.test/news/q3-results?utm_source=newsletter&amp;utm_medium=rss</link>
+      <guid>urn:example-issuer:q3-2026</guid>
+      <pubDate>Tue, 01 Sep 2026 07:00:00 +0000</pubDate>
+      <description>La societe annonce un chiffre d'affaires en hausse de 8% au troisieme trimestre 2026, porte par la demande en Europe. Le resultat net progresse de 5%. La direction confirme ses objectifs annuels pour l'exercice complet.</description>
+      <category>resultats</category>
+    </item>
+    <item>
+      <title>Nomination d'un nouvel administrateur independant</title>
+      <link>https://example-issuer.test/news/board-appointment</link>
+      <guid>urn:example-issuer:board-2026</guid>
+      <pubDate>Thu, 03 Sep 2026 09:30:00 +0000</pubDate>
+      <description>Le conseil d'administration annonce la nomination de Jane Doe en tant qu'administratrice independante a compter du prochain exercice.</description>
+      <category>gouvernance</category>
+    </item>
+  </channel>
+</rss>

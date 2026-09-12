@@ -8,7 +8,7 @@ page - see "Sources et conformité" in specs/NEWS_AND_EVENTS.md).
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from urllib.parse import urlsplit
 
 import feedparser
@@ -76,7 +76,7 @@ class RssAtomAdapter(ProviderAdapter):
 
         feed_language = parsed.feed.get("language")
         bound_asset_id = feed_extra_config.get("asset_id")
-        category_hint = feed_extra_config.get("category_hint")
+        fixed_category_hint = feed_extra_config.get("category_hint")
 
         items: list[RawRecord] = []
         for entry in parsed.entries:
@@ -90,14 +90,14 @@ class RssAtomAdapter(ProviderAdapter):
                     url=entry.get("link", feed_url),
                     summary=entry.get("summary") or entry.get("description"),
                     published_at=published_at,
-                    category_hint=category_hint,
+                    category_hint=fixed_category_hint or entry.get("category"),
                     kind_hint="fact",
                     language=entry.get("language") or feed_language,
                     asset_hint=bound_asset_id,
                     raw={"guid": entry.get("id"), "link": entry.get("link"), "title": entry.get("title")},
                 )
             )
-        return RawFetchResult(items=items, fetched_at=datetime.now(tz=None))
+        return RawFetchResult(items=items)
 
     def normalize(self, record: RawRecord) -> NormalizedNewsItem:
         if record.published_at is None:
@@ -125,7 +125,6 @@ class RssAtomAdapter(ProviderAdapter):
             language=record.language,
             content_hash=compute_content_hash(self.provider_id, canonical_url, title, None),
             asset_hint=record.asset_hint,
-            asset_match_method="explicit" if record.asset_hint else "keyword",
             asset_match_confidence=1.0 if record.asset_hint else 0.5,
             raw_meta=record.raw,
         )
@@ -137,13 +136,13 @@ class RssAtomAdapter(ProviderAdapter):
         except Exception as exc:  # noqa: BLE001 - deliberately broad for a health probe
             return HealthStatus(
                 ok=False,
-                checked_at=datetime.now(),
+                checked_at=datetime.now(UTC),
                 latency_ms=(datetime.now() - started).total_seconds() * 1000,
                 message=str(exc),
             )
         return HealthStatus(
             ok=True,
-            checked_at=datetime.now(),
+            checked_at=datetime.now(UTC),
             latency_ms=(datetime.now() - started).total_seconds() * 1000,
             message="ok",
         )

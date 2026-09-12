@@ -7,14 +7,14 @@ source timezone (when known) is kept alongside for display.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 
 
 def to_utc(dt: datetime) -> datetime:
     if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
+        return dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
 
 
 def parse_rfc2822(value: str | None) -> datetime | None:
@@ -45,4 +45,4 @@ def struct_time_to_utc(struct_time) -> datetime | None:
         return None
     import calendar
 
-    return datetime.fromtimestamp(calendar.timegm(struct_time), tz=timezone.utc)
+    return datetime.fromtimestamp(calendar.timegm(struct_time), tz=UTC)

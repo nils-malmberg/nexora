@@ -77,9 +77,8 @@ def find_near_duplicate_news(
         ratio = _title_similarity(title, candidate.title)
         if ratio < settings.dedup_title_similarity_threshold:
             continue
-        relation_type = (
-            "duplicate_of" if candidate.provider_id == provider_id and ratio >= SAME_PROVIDER_DUPLICATE_RATIO else "corroborates"
-        )
+        same_provider_duplicate = candidate.provider_id == provider_id and ratio >= SAME_PROVIDER_DUPLICATE_RATIO
+        relation_type = "duplicate_of" if same_provider_duplicate else "corroborates"
         if best is None or ratio > best.similarity:
             best = NearDuplicateMatch(news_item=candidate, similarity=ratio, relation_type=relation_type)
     return best
