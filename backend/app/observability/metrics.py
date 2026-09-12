@@ -15,27 +15,19 @@ from prometheus_client import Counter, Gauge, Histogram
 ingestion_runs_total = Counter(
     "nexora_ingestion_runs_total", "Ingestion runs by provider and outcome", ["provider_id", "status"]
 )
-ingestion_latency_seconds = Histogram(
-    "nexora_ingestion_latency_seconds", "Ingestion run duration", ["provider_id"]
-)
+ingestion_latency_seconds = Histogram("nexora_ingestion_latency_seconds", "Ingestion run duration", ["provider_id"])
 items_processed_total = Counter(
     "nexora_items_processed_total",
     "Items processed by outcome",
     ["provider_id", "outcome"],  # inserted|updated|duplicate|corroborates|skipped_parse_error|unmatched_asset
 )
-parsing_errors_total = Counter(
-    "nexora_parsing_errors_total", "Records rejected during normalize()", ["provider_id"]
-)
-missing_field_total = Counter(
-    "nexora_missing_field_total", "Records missing a given field", ["provider_id", "field"]
-)
+parsing_errors_total = Counter("nexora_parsing_errors_total", "Records rejected during normalize()", ["provider_id"])
+missing_field_total = Counter("nexora_missing_field_total", "Records missing a given field", ["provider_id", "field"])
 asset_freshness_age_seconds = Gauge(
     "nexora_asset_freshness_age_seconds", "Age of the most recent item for an asset", ["asset_id", "data_type"]
 )
 provider_up = Gauge("nexora_provider_up", "1 if the provider circuit is closed, else 0", ["provider_id"])
-stale_responses_total = Counter(
-    "nexora_stale_responses_total", "API responses served with stale=true", ["endpoint"]
-)
+stale_responses_total = Counter("nexora_stale_responses_total", "API responses served with stale=true", ["endpoint"])
 collection_publication_lag_seconds = Histogram(
     "nexora_collection_publication_lag_seconds", "collected_at - publication_at", ["provider_id"]
 )

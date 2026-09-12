@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from sqlalchemy import text
@@ -17,6 +18,15 @@ configure_logging(settings.log_level)
 
 app = FastAPI(title="NeXora News & Events API", version="0.1.0")
 register_error_handlers(app)
+
+_origins = [o.strip() for o in settings.cors_allowed_origins.split(",") if o.strip()]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_origins,
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+)
 
 
 @app.middleware("http")

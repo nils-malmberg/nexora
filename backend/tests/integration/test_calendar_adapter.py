@@ -14,14 +14,18 @@ def _adapter() -> CalendarIcsAdapter:
 
 @respx.mock
 def test_fetch_parses_all_vevents():
-    respx.get(CAL_URL).mock(return_value=httpx.Response(200, content=read_fixture_bytes("calendar", "upcoming_events.ics")))
+    respx.get(CAL_URL).mock(
+        return_value=httpx.Response(200, content=read_fixture_bytes("calendar", "upcoming_events.ics"))
+    )
     result = _adapter().fetch(CAL_URL, {"asset_id": "asset-1"}, since=None)
     assert len(result.items) == 4
 
 
 @respx.mock
 def test_normalize_maps_status_and_timezone_correctly():
-    respx.get(CAL_URL).mock(return_value=httpx.Response(200, content=read_fixture_bytes("calendar", "upcoming_events.ics")))
+    respx.get(CAL_URL).mock(
+        return_value=httpx.Response(200, content=read_fixture_bytes("calendar", "upcoming_events.ics"))
+    )
     adapter = _adapter()
     result = adapter.fetch(CAL_URL, {"asset_id": "asset-1"}, since=None)
     normalized = {n.type: n for n in (adapter.normalize(r) for r in result.items)}
@@ -44,7 +48,9 @@ def test_normalize_maps_status_and_timezone_correctly():
 
 @respx.mock
 def test_all_day_event_keeps_period_label_without_inventing_a_time():
-    respx.get(CAL_URL).mock(return_value=httpx.Response(200, content=read_fixture_bytes("calendar", "upcoming_events.ics")))
+    respx.get(CAL_URL).mock(
+        return_value=httpx.Response(200, content=read_fixture_bytes("calendar", "upcoming_events.ics"))
+    )
     adapter = _adapter()
     result = adapter.fetch(CAL_URL, {"asset_id": "asset-1"}, since=None)
     normalized = [adapter.normalize(r) for r in result.items]
@@ -55,7 +61,9 @@ def test_all_day_event_keeps_period_label_without_inventing_a_time():
 
 @respx.mock
 def test_asset_hint_falls_back_to_custom_property_when_feed_not_bound():
-    respx.get(CAL_URL).mock(return_value=httpx.Response(200, content=read_fixture_bytes("calendar", "upcoming_events.ics")))
+    respx.get(CAL_URL).mock(
+        return_value=httpx.Response(200, content=read_fixture_bytes("calendar", "upcoming_events.ics"))
+    )
     adapter = _adapter()
     result = adapter.fetch(CAL_URL, {}, since=None)  # no feed-level asset_id
     normalized = adapter.normalize(result.items[0])
@@ -83,7 +91,9 @@ def test_fetch_raises_rate_limited_on_429():
 
 @respx.mock
 def test_health_reports_ok_and_failure():
-    respx.get(CAL_URL).mock(return_value=httpx.Response(200, content=read_fixture_bytes("calendar", "upcoming_events.ics")))
+    respx.get(CAL_URL).mock(
+        return_value=httpx.Response(200, content=read_fixture_bytes("calendar", "upcoming_events.ics"))
+    )
     assert _adapter().health(CAL_URL, {}).ok is True
 
     respx.get(CAL_URL).mock(return_value=httpx.Response(503))

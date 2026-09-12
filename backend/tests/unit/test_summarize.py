@@ -12,7 +12,9 @@ def test_summarize_returns_short_excerpt_unchanged():
 
 
 def test_summarize_never_exceeds_max_length():
-    long_excerpt = " ".join([f"Phrase numero {i} avec du texte supplementaire pour allonger le tout." for i in range(20)])
+    long_excerpt = " ".join(
+        [f"Phrase numero {i} avec du texte supplementaire pour allonger le tout." for i in range(20)]
+    )
     result = summarize("Titre pertinent", long_excerpt)
     assert result is not None
     assert len(result) <= 400

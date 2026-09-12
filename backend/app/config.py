@@ -51,5 +51,10 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     environment: str = "development"
 
+    # Comma-separated list of allowed origins for the (cookie-less, read-only)
+    # API. "*" is safe here since no credentialed/cookie-based request is
+    # ever made against this API - see specs/SECURITY.md.
+    cors_allowed_origins: str = "*"
+
 
 settings = Settings()

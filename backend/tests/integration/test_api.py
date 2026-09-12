@@ -15,9 +15,7 @@ from app.db import Base
 
 @pytest.fixture()
 def client():
-    engine = create_engine(
-        "sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     Base.metadata.create_all(engine)
     session_factory = sessionmaker(bind=engine, future=True)
     session = session_factory()
@@ -56,7 +54,9 @@ def _seed_news_item(session, asset, provider, **overrides):
     item = models.NewsItem(**defaults)
     session.add(item)
     session.flush()
-    session.add(models.NewsItemAsset(news_item_id=item.id, asset_id=asset.id, match_confidence=1.0, match_method="explicit"))
+    session.add(
+        models.NewsItemAsset(news_item_id=item.id, asset_id=asset.id, match_confidence=1.0, match_method="explicit")
+    )
     session.commit()
     return item
 
@@ -351,6 +351,13 @@ def test_admin_sync_requires_key(client, monkeypatch):
     )
     assert resp.status_code == 200
     assert resp.json()["provider_id"] == provider.id
+
+
+def test_cors_allows_cross_origin_requests(client):
+    http, _ = client
+    resp = http.get("/api/v1/assets", headers={"Origin": "http://localhost:5173"})
+    assert resp.status_code == 200
+    assert resp.headers["access-control-allow-origin"] == "*"
 
 
 def test_metrics_endpoint_exposes_prometheus_format(client):

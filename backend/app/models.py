@@ -143,9 +143,7 @@ class NewsItem(Base):
     content_hash: Mapped[str] = mapped_column(String(64), index=True)
     raw_meta: Mapped[dict] = mapped_column(JSONType, default=dict)
 
-    asset_links: Mapped[list[NewsItemAsset]] = relationship(
-        back_populates="news_item", cascade="all, delete-orphan"
-    )
+    asset_links: Mapped[list[NewsItemAsset]] = relationship(back_populates="news_item", cascade="all, delete-orphan")
 
     __table_args__ = (
         CheckConstraint("kind in ('fact','synthesis','prediction')", name="ck_news_kind"),
@@ -225,9 +223,7 @@ class Event(Base):
     )
 
     __table_args__ = (
-        CheckConstraint(
-            "status in ('confirme','previsionnel','reporte','annule','unknown')", name="ck_event_status"
-        ),
+        CheckConstraint("status in ('confirme','previsionnel','reporte','annule','unknown')", name="ck_event_status"),
         Index("ix_event_asset_starts", "asset_id", "starts_at"),
     )
 

@@ -21,7 +21,9 @@ def _make_news_item(db_session, provider_id, asset_id, title, content_hash, publ
     db_session.add(item)
     db_session.flush()
     if asset_id:
-        db_session.add(NewsItemAsset(news_item_id=item.id, asset_id=asset_id, match_confidence=1.0, match_method="explicit"))
+        db_session.add(
+            NewsItemAsset(news_item_id=item.id, asset_id=asset_id, match_confidence=1.0, match_method="explicit")
+        )
     db_session.commit()
     return item
 
@@ -61,7 +63,9 @@ def test_near_duplicate_different_provider_corroborates(db_session, make_provide
     provider_b = make_provider("prov-b", "rss")
     asset = make_asset()
     when = datetime(2026, 9, 1, tzinfo=UTC)
-    _make_news_item(db_session, provider_a.id, asset.id, "Resultats du troisieme trimestre en hausse de 8%", "hash-1", when)
+    _make_news_item(
+        db_session, provider_a.id, asset.id, "Resultats du troisieme trimestre en hausse de 8%", "hash-1", when
+    )
 
     match = find_near_duplicate_news(
         db_session,

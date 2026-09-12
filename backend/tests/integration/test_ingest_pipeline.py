@@ -68,7 +68,9 @@ def test_corroboration_relation_created_across_providers(db_session, make_provid
     _add_feed(db_session, provider_a, RSS_URL, asset_id=asset.id)
     _add_feed(db_session, provider_b, MEDIA_RSS_URL, asset_id=asset.id)
     respx.get(RSS_URL).mock(return_value=httpx.Response(200, content=read_fixture_bytes("rss", "valid_feed.xml")))
-    respx.get(MEDIA_RSS_URL).mock(return_value=httpx.Response(200, content=read_fixture_bytes("rss", "corroborating_feed.xml")))
+    respx.get(MEDIA_RSS_URL).mock(
+        return_value=httpx.Response(200, content=read_fixture_bytes("rss", "corroborating_feed.xml"))
+    )
 
     run_provider(db_session, provider_a)
     run_provider(db_session, provider_b)
@@ -120,19 +122,28 @@ def test_calendar_status_change_is_traceable(db_session, make_provider, make_ass
     provider = make_provider("issuer-calendar", "calendar_ics")
     _add_feed(db_session, provider, CAL_URL, asset_id=asset.id)
 
-    respx.get(CAL_URL).mock(return_value=httpx.Response(200, content=read_fixture_bytes("calendar", "upcoming_events.ics")))
+    respx.get(CAL_URL).mock(
+        return_value=httpx.Response(200, content=read_fixture_bytes("calendar", "upcoming_events.ics"))
+    )
     run_provider(db_session, provider)
 
     agm = db_session.query(Event).filter(Event.type == "assemblee_generale").one()
     assert agm.status == "confirme"
     assert len(agm.status_history) == 1
 
-    respx.get(CAL_URL).mock(return_value=httpx.Response(200, content=read_fixture_bytes("calendar", "corrected_event.ics")))
+    respx.get(CAL_URL).mock(
+        return_value=httpx.Response(200, content=read_fixture_bytes("calendar", "corrected_event.ics"))
+    )
     run_provider(db_session, provider)
 
     db_session.refresh(agm)
     assert agm.status == "annule"
-    history = db_session.query(EventStatusHistory).filter(EventStatusHistory.event_id == agm.id).order_by(EventStatusHistory.changed_at).all()
+    history = (
+        db_session.query(EventStatusHistory)
+        .filter(EventStatusHistory.event_id == agm.id)
+        .order_by(EventStatusHistory.changed_at)
+        .all()
+    )
     assert [h.new_status for h in history] == ["confirme", "annule"]
     assert len(agm.sources) == 2  # both the original and corrected source URLs are kept
 
