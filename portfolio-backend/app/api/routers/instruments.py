@@ -5,8 +5,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db, require_csrf
+from app.domain.analytics import compute_indicators
 from app.domain.positions import record_private_valuation
 from app.models import Instrument, PricePoint, PrivateValuation, User
+from app.schemas.analytics import IndicatorsOut
 from app.schemas.instruments import (
     InstrumentCreate,
     InstrumentOut,
@@ -104,10 +106,9 @@ def create_price(
     db: Session = Depends(get_db),
     _csrf: None = Depends(require_csrf),
 ) -> PricePointOut:
-    """Manual price entry — the only way a position gets a market value in
-    this PR, since no real market-data provider is wired in (see
-    app/adapters/market_data.py). CSV-imported prices arrive the same way in
-    a later PR (source="import" instead of "manual")."""
+    """Manual price entry — the only way a position gets a market value
+    today, since no real market-data provider is wired in (see
+    app/adapters/market_data.py)."""
     _get_owned_instrument(instrument_id, db, user)
     price = PricePoint(
         instrument_id=instrument_id,
@@ -120,6 +121,52 @@ def create_price(
     db.add(price)
     db.commit()
     return PricePointOut.model_validate(price)
+
+
+@router.get("/{instrument_id}/indicators", response_model=IndicatorsOut)
+def get_indicators(
+    instrument_id: str,
+    sma: int = Query(default=20, ge=2, le=200),
+    ema: int = Query(default=12, ge=2, le=200),
+    rsi: int = Query(default=14, ge=2, le=200),
+    macd_fast: int = Query(default=12, ge=2, le=200),
+    macd_slow: int = Query(default=26, ge=2, le=200),
+    macd_signal: int = Query(default=9, ge=2, le=200),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> IndicatorsOut:
+    """specs/ANALYTICS_AND_CHARTS.md: "Indicateurs : SMA/EMA/RSI/MACD, avec
+    paramètres visibles et aucune alerte prescriptive" — window sizes are
+    caller-supplied and echoed back in the response, never hidden."""
+    _get_owned_instrument(instrument_id, db, user)
+    prices = db.scalars(
+        select(PricePoint).where(PricePoint.instrument_id == instrument_id).order_by(PricePoint.as_of)
+    ).all()
+    series = compute_indicators(
+        dates=[p.as_of for p in prices],
+        prices=[p.price for p in prices],
+        sma_window=sma,
+        ema_window=ema,
+        rsi_window=rsi,
+        macd_fast=macd_fast,
+        macd_slow=macd_slow,
+        macd_signal_window=macd_signal,
+    )
+    return IndicatorsOut(
+        dates=series.dates,
+        prices=series.prices,
+        sma=series.sma,
+        ema=series.ema,
+        rsi=series.rsi,
+        macd=series.macd,
+        macd_signal=series.macd_signal,
+        sma_window=sma,
+        ema_window=ema,
+        rsi_window=rsi,
+        macd_fast=macd_fast,
+        macd_slow=macd_slow,
+        macd_signal_window=macd_signal,
+    )
 
 
 @router.get("/{instrument_id}/private-valuations", response_model=list[PrivateValuationOut])

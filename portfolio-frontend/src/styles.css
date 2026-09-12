@@ -383,3 +383,81 @@ tr.row-reversed {
   padding: 4px 0;
   border-bottom: 1px solid var(--border);
 }
+
+.chart-wrapper {
+  margin-bottom: 12px;
+}
+
+.line-chart {
+  width: 100%;
+  max-width: 640px;
+  height: auto;
+  display: block;
+}
+
+.chart-axis {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.chart-axis-label {
+  fill: var(--text-muted);
+  font-size: 10px;
+}
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 4px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.chart-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.chart-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.allocation-bar {
+  display: flex;
+  width: 100%;
+  height: 24px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  margin-bottom: 8px;
+}
+
+.allocation-segment {
+  height: 100%;
+}
+
+.allocation-legend {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 12px;
+  font-size: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.allocation-legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.education-note {
+  color: var(--text-muted);
+  margin: 4px 0 16px;
+}

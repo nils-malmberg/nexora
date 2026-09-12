@@ -189,6 +189,81 @@ export const CANONICAL_IMPORT_FIELDS = [
   "external_id",
 ] as const;
 
+export interface ValuationPoint {
+  as_of: string;
+  cash: string;
+  positions_value: string;
+  total_value: string;
+  has_missing_prices: boolean;
+}
+
+export interface History {
+  base_currency: string;
+  points: ValuationPoint[];
+}
+
+export interface AllocationSlice {
+  label: string;
+  value: string;
+  share: string;
+}
+
+export interface Allocation {
+  base_currency: string;
+  total_value: string;
+  by_asset_class: AllocationSlice[];
+  by_instrument: AllocationSlice[];
+  by_currency: AllocationSlice[];
+  unconverted_currencies: string[];
+}
+
+export interface Risk {
+  has_sufficient_data: boolean;
+  volatility_annualized: string | null;
+  max_drawdown: string | null;
+  observations: number;
+  method: string;
+}
+
+export interface Performance {
+  has_sufficient_data: boolean;
+  start: string;
+  end: string;
+  base_currency: string;
+  twr: string | null;
+  mwr: string | null;
+  external_flow_count: number;
+  method: string;
+}
+
+export interface Indicators {
+  dates: string[];
+  prices: string[];
+  sma: (string | null)[];
+  ema: (string | null)[];
+  rsi: (string | null)[];
+  macd: (string | null)[];
+  macd_signal: (string | null)[];
+  sma_window: number;
+  ema_window: number;
+  rsi_window: number;
+  macd_fast: number;
+  macd_slow: number;
+  macd_signal_window: number;
+}
+
+export interface EducationSummary {
+  slug: string;
+  title: string;
+}
+
+export interface EducationArticle extends EducationSummary {
+  what_it_measures: string;
+  method: string;
+  limitations: string;
+  version: string;
+}
+
 export interface ExportData {
   user: User;
   portfolios: Portfolio[];

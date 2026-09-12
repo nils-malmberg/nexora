@@ -1,16 +1,23 @@
 import { getCsrfToken } from "../authStore";
 import type {
+  Allocation,
   AuthResponse,
+  EducationArticle,
+  EducationSummary,
   ExportData,
+  History,
   ImportJob,
   ImportJobSummary,
+  Indicators,
   Instrument,
   Page,
+  Performance,
   Portfolio,
   Position,
   PricePoint,
   PrivateValuation,
   ProviderStatus,
+  Risk,
   Transaction,
   Valuation,
 } from "../types";
@@ -238,6 +245,50 @@ export function previewImport(
 
 export function commitImport(portfolioId: string, jobId: string): Promise<ImportJob> {
   return request<ImportJob>(`/api/v1/portfolios/${portfolioId}/imports/${jobId}/commit`, { method: "POST" });
+}
+
+export interface DateRange {
+  start?: string;
+  end?: string;
+  [key: string]: string | undefined;
+}
+
+export function getHistory(portfolioId: string, range: DateRange = {}): Promise<History> {
+  return request<History>(`/api/v1/portfolios/${portfolioId}/analytics/history`, { params: range });
+}
+
+export function getAllocation(portfolioId: string): Promise<Allocation> {
+  return request<Allocation>(`/api/v1/portfolios/${portfolioId}/analytics/allocation`);
+}
+
+export function getRisk(portfolioId: string, range: DateRange = {}): Promise<Risk> {
+  return request<Risk>(`/api/v1/portfolios/${portfolioId}/analytics/risk`, { params: range });
+}
+
+export function getPerformance(portfolioId: string, range: DateRange = {}): Promise<Performance> {
+  return request<Performance>(`/api/v1/portfolios/${portfolioId}/analytics/performance`, { params: range });
+}
+
+export interface IndicatorParams {
+  sma?: number;
+  ema?: number;
+  rsi?: number;
+  macd_fast?: number;
+  macd_slow?: number;
+  macd_signal?: number;
+  [key: string]: number | undefined;
+}
+
+export function getIndicators(instrumentId: string, params: IndicatorParams = {}): Promise<Indicators> {
+  return request<Indicators>(`/api/v1/instruments/${instrumentId}/indicators`, { params });
+}
+
+export function listEducation(): Promise<EducationSummary[]> {
+  return request<EducationSummary[]>("/api/v1/education");
+}
+
+export function getEducationArticle(slug: string): Promise<EducationArticle> {
+  return request<EducationArticle>(`/api/v1/education/${slug}`);
 }
 
 export function getProvidersStatus(): Promise<ProviderStatus> {
