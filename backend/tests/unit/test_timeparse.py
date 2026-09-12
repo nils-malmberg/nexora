@@ -1,6 +1,6 @@
-from datetime import UTC
+from datetime import UTC, datetime
 
-from app.utils.timeparse import parse_iso8601, parse_rfc2822, struct_time_to_utc
+from app.utils.timeparse import parse_iso8601, parse_rfc2822, parse_unix_timestamp, struct_time_to_utc
 
 
 def test_parse_iso8601_with_z_suffix():
@@ -46,3 +46,24 @@ def test_struct_time_to_utc_converts():
     dt = struct_time_to_utc(struct)
     assert dt.year == 2026 and dt.hour == 7
     assert dt.tzinfo is not None
+
+
+def test_parse_unix_timestamp_seconds():
+    # 2026-09-01T07:00:00Z, per Finnhub's CompanyNews.datetime shape (int seconds)
+    dt = parse_unix_timestamp(1788246000)
+    assert dt == datetime(2026, 9, 1, 7, 0, 0, tzinfo=UTC)
+
+
+def test_parse_unix_timestamp_milliseconds():
+    dt = parse_unix_timestamp(1788246000000, unit="milliseconds")
+    assert dt == datetime(2026, 9, 1, 7, 0, 0, tzinfo=UTC)
+
+
+def test_parse_unix_timestamp_accepts_numeric_string():
+    assert parse_unix_timestamp("1788246000") == datetime(2026, 9, 1, 7, 0, 0, tzinfo=UTC)
+
+
+def test_parse_unix_timestamp_unknown_stays_unknown():
+    assert parse_unix_timestamp(None) is None
+    assert parse_unix_timestamp("") is None
+    assert parse_unix_timestamp("not-a-number") is None

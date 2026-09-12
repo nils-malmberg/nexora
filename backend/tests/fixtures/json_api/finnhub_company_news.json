@@ -1,0 +1,13 @@
+[
+  {
+    "category": "company",
+    "datetime": 1788246000,
+    "headline": "Apple announces new product lineup",
+    "id": 7301234,
+    "image": "https://example-media.test/img/apple.jpg",
+    "related": "AAPL",
+    "source": "Example Wire",
+    "summary": "Apple unveiled its latest product lineup at a press event, highlighting improvements to battery life and camera systems.",
+    "url": "https://example-media.test/articles/apple-lineup"
+  }
+]

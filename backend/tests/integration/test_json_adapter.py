@@ -124,6 +124,37 @@ def test_fetch_raises_timeout():
 
 
 @respx.mock
+def test_unix_timestamp_format_parses_finnhub_shaped_response():
+    """Finnhub's CompanyNews.datetime is a Unix timestamp per its own OpenAPI
+    spec, not ISO 8601. Before `timestamp_format` this crashed with an
+    uncaught AttributeError (int has no .strip()) instead of a graceful
+    AdapterParseError or a correctly parsed date."""
+    finnhub_mapping = {
+        "external_id": "id",
+        "title": "headline",
+        "url": "url",
+        "summary": "summary",
+        "published_at": "datetime",
+        "asset_symbol": "related",
+    }
+    adapter = JsonApiAdapter(
+        provider_id="prov-finnhub",
+        provider_config={
+            "mapping": finnhub_mapping,
+            "pagination": {"style": "none"},
+            "timestamp_format": "unix_seconds",
+        },
+    )
+    respx.get(API_URL).mock(return_value=httpx.Response(200, json=_page("finnhub_company_news.json")))
+    result = adapter.fetch(API_URL, {}, since=None)
+    assert len(result.items) == 1
+    normalized = adapter.normalize(result.items[0])
+    assert normalized.publication_at.year == 2026
+    assert normalized.publication_at.month == 9
+    assert normalized.publication_at.day == 1
+
+
+@respx.mock
 def test_event_content_type_requires_event_date_or_period():
     adapter = JsonApiAdapter(
         provider_id="prov-json-events",

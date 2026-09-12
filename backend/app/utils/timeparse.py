@@ -38,6 +38,25 @@ def parse_iso8601(value: str | None) -> datetime | None:
         return None
 
 
+def parse_unix_timestamp(value, unit: str = "seconds") -> datetime | None:
+    """Some real JSON APIs (e.g. Finnhub's `CompanyNews.datetime` - see its
+    own OpenAPI spec) publish a Unix timestamp instead of ISO 8601. Accepts
+    an int/float or a numeric string; never raises on bad input, matching
+    the other parse_* helpers here - an unparseable date stays unknown."""
+    if value is None or value == "":
+        return None
+    try:
+        seconds = float(value)
+    except (TypeError, ValueError):
+        return None
+    if unit == "milliseconds":
+        seconds /= 1000
+    try:
+        return datetime.fromtimestamp(seconds, tz=UTC)
+    except (OverflowError, OSError, ValueError):
+        return None
+
+
 def struct_time_to_utc(struct_time) -> datetime | None:
     """feedparser exposes parsed dates as a UTC time.struct_time (or None
     when the source's date string could not be parsed) - never invented."""

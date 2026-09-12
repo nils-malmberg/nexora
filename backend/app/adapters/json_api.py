@@ -37,7 +37,7 @@ from app.adapters.common import (
     normalize_title,
     truncate,
 )
-from app.utils.timeparse import parse_iso8601
+from app.utils.timeparse import parse_iso8601, parse_unix_timestamp
 
 MAX_PAGES = 20
 
@@ -96,6 +96,17 @@ class JsonApiAdapter(ProviderAdapter):
         except ValueError as exc:
             raise AdapterParseError(f"invalid JSON from {url}: {exc}") from exc
 
+    def _parse_timestamp(self, value) -> datetime | None:
+        """Dispatches on `provider_config.timestamp_format` (default
+        "iso8601"): some real APIs (e.g. Finnhub's CompanyNews.datetime, per
+        its own OpenAPI spec) publish Unix timestamps instead."""
+        fmt = self.provider_config.get("timestamp_format", "iso8601")
+        if fmt == "unix_seconds":
+            return parse_unix_timestamp(value, unit="seconds")
+        if fmt == "unix_milliseconds":
+            return parse_unix_timestamp(value, unit="milliseconds")
+        return parse_iso8601(value)
+
     def fetch(self, feed_url: str, feed_extra_config: dict, since: datetime | None) -> RawFetchResult:
         mapping = self.provider_config.get("mapping")
         if not mapping:
@@ -125,7 +136,7 @@ class JsonApiAdapter(ProviderAdapter):
                 raise AdapterParseError(f"expected a list of items at '{items_path}' in response from {feed_url}")
 
             for raw in raw_items:
-                published_at = parse_iso8601(get_path(raw, mapping.get("published_at")))
+                published_at = self._parse_timestamp(get_path(raw, mapping.get("published_at")))
                 if since is not None and published_at is not None and published_at <= since:
                     continue
                 items.append(
@@ -135,7 +146,7 @@ class JsonApiAdapter(ProviderAdapter):
                         url=get_path(raw, mapping.get("url"), feed_url),
                         summary=get_path(raw, mapping.get("summary")),
                         published_at=published_at,
-                        event_at=parse_iso8601(get_path(raw, mapping.get("event_at"))),
+                        event_at=self._parse_timestamp(get_path(raw, mapping.get("event_at"))),
                         event_period_label=get_path(raw, mapping.get("event_period_label")),
                         category_hint=get_path(raw, mapping.get("category")),
                         kind_hint=get_path(raw, mapping.get("kind"), "fact"),
