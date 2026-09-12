@@ -10,7 +10,7 @@ from sqlalchemy import text
 
 from app.api.deps import get_db
 from app.api.errors import register_error_handlers
-from app.api.routers import auth, instruments, me, portfolios, providers
+from app.api.routers import auth, imports, instruments, me, portfolios, providers
 from app.config import settings
 from app.observability.logging import configure_logging
 
@@ -44,6 +44,7 @@ async def add_request_id(request: Request, call_next):
 app.include_router(auth.router)
 app.include_router(portfolios.router)
 app.include_router(instruments.router)
+app.include_router(imports.router)
 app.include_router(me.router)
 app.include_router(providers.router)
 

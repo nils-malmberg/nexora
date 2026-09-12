@@ -20,6 +20,7 @@ import {
 } from "../types";
 import type { Instrument, Portfolio, Position, Transaction, TransactionType, Valuation } from "../types";
 import { formatAmount, formatDateTime, formatQuantity } from "../format";
+import { ImportWizard } from "../components/ImportWizard";
 
 const INSTRUMENT_REQUIRED_TYPES: TransactionType[] = ["achat", "vente", "dividende", "coupon", "split"];
 
@@ -113,6 +114,8 @@ export function PortfolioDetailPage({
 
       <h3>Transactions</h3>
       <TransactionsList transactions={transactions} instruments={instruments} onReverse={handleReverse} />
+
+      <ImportWizard portfolioId={portfolio.id} onCommitted={reload} />
     </div>
   );
 }

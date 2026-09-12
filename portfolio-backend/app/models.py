@@ -216,6 +216,46 @@ class PrivateValuation(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
 
 
+IMPORT_JOB_STATUSES = ("draft", "previewed", "committed")
+
+
+class ImportJob(Base):
+    """One CSV import, tracked through draft (uploaded, mapping suggested) →
+    previewed (validated, nothing written) → committed (valid rows applied).
+    `raw_rows` holds the parsed-but-unmapped rows needed to re-run
+    preview/commit without asking for a re-upload; it is cleared once
+    committed (specs/PORTFOLIO_IMPORTS.md: "suppression du fichier brut selon
+    rétention") — the raw file bytes themselves are never written anywhere,
+    only these already-structured rows, and even those are dropped once the
+    job is committed. `row_results` (the report) is kept indefinitely so it
+    stays downloadable — specs/UX_SPEC.md: "Résultat réouvrable depuis
+    l'historique"."""
+
+    __tablename__ = "import_jobs"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    portfolio_id: Mapped[str] = mapped_column(ForeignKey("portfolios.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    filename: Mapped[str] = mapped_column(String(260))
+    status: Mapped[str] = mapped_column(String(12), default="draft")
+    delimiter: Mapped[str] = mapped_column(String(4))
+    encoding: Mapped[str] = mapped_column(String(40))
+    column_mapping: Mapped[dict] = mapped_column(JSONType, default=dict)
+    default_timezone: Mapped[str] = mapped_column(String(40), default="UTC")
+    raw_rows: Mapped[list | None] = mapped_column(JSONType, nullable=True)
+    row_results: Mapped[list | None] = mapped_column(JSONType, nullable=True)
+    total_rows: Mapped[int] = mapped_column(default=0)
+    valid_count: Mapped[int] = mapped_column(default=0)
+    error_count: Mapped[int] = mapped_column(default=0)
+    duplicate_count: Mapped[int] = mapped_column(default=0)
+    inserted_count: Mapped[int] = mapped_column(default=0)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+    previewed_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    committed_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+
+    __table_args__ = (CheckConstraint(f"status in {IMPORT_JOB_STATUSES!r}", name="ck_import_job_status"),)
+
+
 class AuditEvent(Base):
     """Append-only audit trail for sensitive actions (login, portfolio/account
     deletion, transaction reversal) — specs/SECURITY.md incident-response and

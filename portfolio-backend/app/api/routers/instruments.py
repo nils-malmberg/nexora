@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db, require_csrf
+from app.domain.positions import record_private_valuation
 from app.models import Instrument, PricePoint, PrivateValuation, User
 from app.schemas.instruments import (
     InstrumentCreate,
@@ -145,31 +146,18 @@ def create_private_valuation(
     """specs/PRODUCT_SPEC.md: private-asset valuations require an explicit
     date, amount, method and confidence — never inferred silently."""
     instrument = _get_owned_instrument(instrument_id, db, user)
-    if instrument.asset_class != "actif_prive":
-        raise HTTPException(status_code=422, detail="private valuations are only valid for asset_class='actif_prive'")
-
-    valuation = PrivateValuation(
-        instrument_id=instrument_id,
-        valuation_date=payload.valuation_date,
-        valuation_amount=payload.valuation_amount,
-        currency=payload.currency,
-        method=payload.method,
-        confidence=payload.confidence,
-        note=payload.note,
-    )
-    db.add(valuation)
-    # A private valuation also feeds the position/valuation engine the same
-    # way a market PricePoint does (see app/domain/positions.py:latest_price),
-    # so a private-asset position shows up in /positions and /valuation too.
-    db.add(
-        PricePoint(
-            instrument_id=instrument_id,
-            as_of=payload.valuation_date,
-            price=payload.valuation_amount,
+    try:
+        valuation = record_private_valuation(
+            db,
+            instrument,
+            valuation_date=payload.valuation_date,
+            amount=payload.valuation_amount,
             currency=payload.currency,
-            source="private_valuation",
-            is_estimate=True,
+            method=payload.method,
+            confidence=payload.confidence,
+            note=payload.note,
         )
-    )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     db.commit()
     return PrivateValuationOut.model_validate(valuation)

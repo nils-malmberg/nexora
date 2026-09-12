@@ -193,6 +193,98 @@ def test_transfert_type_not_yet_supported_via_api(registered_user):
     assert response.status_code == 422
 
 
+def test_valorisation_privee_transaction_creates_valuation_and_price(registered_user):
+    client, csrf, _user_id = registered_user
+    portfolio_id = _make_portfolio(client, csrf)
+    instrument = client.post(
+        "/api/v1/instruments",
+        json={"symbol": "PRIV2", "name": "Startup SAS", "asset_class": "actif_prive", "currency": "EUR"},
+        headers=_headers(csrf),
+    ).json()
+
+    # Record the initial stake so the instrument shows up as a position at all.
+    client.post(
+        f"/api/v1/portfolios/{portfolio_id}/transactions",
+        json={
+            "instrument_id": instrument["id"],
+            "type": "achat",
+            "trade_date": "2026-01-01T00:00:00Z",
+            "quantity": "1",
+            "unit_price": "10000",
+            "currency": "EUR",
+        },
+        headers=_headers(csrf),
+    )
+
+    response = client.post(
+        f"/api/v1/portfolios/{portfolio_id}/transactions",
+        json={
+            "instrument_id": instrument["id"],
+            "type": "valorisation_privee",
+            "trade_date": "2026-06-01T00:00:00Z",
+            "quantity": "1",
+            "unit_price": "15000",
+            "currency": "EUR",
+            "method": "Dernière levée de fonds",
+        },
+        headers=_headers(csrf),
+    )
+    assert response.status_code == 201, response.text
+
+    valuations = client.get(f"/api/v1/instruments/{instrument['id']}/private-valuations").json()
+    assert len(valuations) == 1
+    assert valuations[0]["valuation_amount"] == "15000.000000"
+
+    positions = client.get(f"/api/v1/portfolios/{portfolio_id}/positions").json()
+    assert positions[0]["market_value"] == "15000.000000"
+    assert positions[0]["freshness"] == "estime"
+
+
+def test_valorisation_privee_requires_method(registered_user):
+    client, csrf, _user_id = registered_user
+    portfolio_id = _make_portfolio(client, csrf)
+    instrument = client.post(
+        "/api/v1/instruments",
+        json={"symbol": "PRIV3", "name": "Startup SAS", "asset_class": "actif_prive", "currency": "EUR"},
+        headers=_headers(csrf),
+    ).json()
+
+    response = client.post(
+        f"/api/v1/portfolios/{portfolio_id}/transactions",
+        json={
+            "instrument_id": instrument["id"],
+            "type": "valorisation_privee",
+            "trade_date": "2026-06-01T00:00:00Z",
+            "quantity": "1",
+            "unit_price": "15000",
+            "currency": "EUR",
+        },
+        headers=_headers(csrf),
+    )
+    assert response.status_code == 422
+
+
+def test_valorisation_privee_rejected_for_non_private_asset_class(registered_user):
+    client, csrf, _user_id = registered_user
+    portfolio_id = _make_portfolio(client, csrf)
+    instrument_id = _make_instrument(client, csrf, symbol="PUB2")
+
+    response = client.post(
+        f"/api/v1/portfolios/{portfolio_id}/transactions",
+        json={
+            "instrument_id": instrument_id,
+            "type": "valorisation_privee",
+            "trade_date": "2026-06-01T00:00:00Z",
+            "quantity": "1",
+            "unit_price": "15000",
+            "currency": "EUR",
+            "method": "Estimation",
+        },
+        headers=_headers(csrf),
+    )
+    assert response.status_code == 422
+
+
 def test_reverse_transaction_excludes_it_from_positions(registered_user):
     client, csrf, _user_id = registered_user
     portfolio_id = _make_portfolio(client, csrf)

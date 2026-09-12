@@ -9,7 +9,14 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, get_db, get_owned_portfolio, require_csrf
 from app.api.pagination import clamp_page_size, decode_cursor, encode_cursor
 from app.config import settings
-from app.domain.positions import PositionView, compute_positions, compute_valuation, rebuild_lots
+from app.domain.positions import (
+    DuplicateTransactionError,
+    PositionView,
+    apply_transaction,
+    compute_positions,
+    compute_valuation,
+    rebuild_lots,
+)
 from app.models import AuditEvent, Instrument, Portfolio, Transaction, User
 from app.observability.metrics import transactions_created_total
 from app.schemas.common import Page
@@ -153,37 +160,14 @@ def create_transaction(
     portfolio = get_owned_portfolio(portfolio_id, db, user)
     instrument = _validate_instrument(db, user, payload.instrument_id)
 
-    if payload.external_id:
-        existing = db.scalars(
-            select(Transaction).where(
-                Transaction.portfolio_id == portfolio.id, Transaction.external_id == payload.external_id
-            )
-        ).first()
-        if existing is not None:
-            raise HTTPException(status_code=409, detail="a transaction with this external_id already exists")
-
-    tx = Transaction(
-        portfolio_id=portfolio.id,
-        instrument_id=instrument.id if instrument else None,
-        type=payload.type,
-        trade_date=payload.trade_date,
-        quantity=payload.quantity,
-        unit_price=payload.unit_price,
-        currency=payload.currency,
-        fees=payload.fees,
-        account=payload.account,
-        external_id=payload.external_id,
-        note=payload.note,
-    )
-    db.add(tx)
-    db.flush()  # assigns tx.id, and makes the row visible to rebuild_lots' query below
-
-    if instrument and payload.type in LOT_AFFECTING_TYPES:
-        try:
-            rebuild_lots(db, portfolio.id, instrument.id)
-        except ValueError as exc:
-            db.rollback()
-            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    try:
+        tx = apply_transaction(db, portfolio, instrument, payload)
+    except DuplicateTransactionError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     db.commit()
     transactions_created_total.labels(type=payload.type).inc()

@@ -19,9 +19,24 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import Instrument, Portfolio, PositionLot, PricePoint, Transaction
+from app.models import Instrument, Portfolio, PositionLot, PricePoint, PrivateValuation, Transaction
+from app.schemas.transactions import TransactionCreate
 
 LOT_AFFECTING_TYPES = ("achat", "vente", "split")
+
+
+class DuplicateTransactionError(Exception):
+    """Raised by `apply_transaction` when `external_id` already exists for
+    this portfolio. A distinct type from ValueError (oversell/split errors)
+    so callers can treat it differently: the manual API rejects it (409),
+    while CSV import treats a repeat import as an idempotent no-op (skipped,
+    not an error) — specs/PORTFOLIO_IMPORTS.md: "Les imports répétés
+    utilisent external_id ou empreinte canonique"."""
+
+    def __init__(self, message: str, existing_transaction_id: str):
+        super().__init__(message)
+        self.existing_transaction_id = existing_transaction_id
+
 
 # Matches the DB columns' declared scale (Numeric(20,6) for money,
 # Numeric(24,8) for quantities). Chained Decimal arithmetic (multiplication
@@ -139,6 +154,13 @@ def _lot_transactions(db: Session, portfolio_id: str, instrument_id: str) -> lis
     )
 
 
+def existing_lot_transactions(db: Session, portfolio_id: str, instrument_id: str) -> list[Transaction]:
+    """Public entry point for CSV import (app/domain/csv_import.py), which
+    needs to replay an instrument's existing transactions together with new,
+    not-yet-applied batch rows to detect a sell-short spanning both."""
+    return _lot_transactions(db, portfolio_id, instrument_id)
+
+
 def available_quantity(db: Session, portfolio_id: str, instrument_id: str) -> Decimal:
     """Quantity currently held, computed without persisting — used to
     validate a prospective sell before committing it."""
@@ -169,6 +191,111 @@ def rebuild_lots(db: Session, portfolio_id: str, instrument_id: str) -> list[Pos
     ]
     db.add_all(lots)
     return lots
+
+
+def record_private_valuation(
+    db: Session,
+    instrument: Instrument,
+    valuation_date: datetime,
+    amount: Decimal,
+    currency: str,
+    method: str,
+    confidence: Decimal,
+    note: str | None,
+) -> PrivateValuation:
+    """Shared by `POST /instruments/{id}/private-valuations`
+    (app/api/routers/instruments.py) and `apply_transaction` below, so a
+    private valuation always has exactly one code path regardless of whether
+    it arrived through that dedicated endpoint, the manual transaction API,
+    or CSV import."""
+    if instrument.asset_class != "actif_prive":
+        raise ValueError("private valuations are only valid for asset_class='actif_prive'")
+
+    valuation = PrivateValuation(
+        instrument_id=instrument.id,
+        valuation_date=valuation_date,
+        valuation_amount=amount,
+        currency=currency,
+        method=method,
+        confidence=confidence,
+        note=note,
+    )
+    db.add(valuation)
+    # Feeds the position/valuation engine the same way a market PricePoint
+    # does (see latest_price below).
+    db.add(
+        PricePoint(
+            instrument_id=instrument.id,
+            as_of=valuation_date,
+            price=amount,
+            currency=currency,
+            source="private_valuation",
+            is_estimate=True,
+        )
+    )
+    return valuation
+
+
+def apply_transaction(
+    db: Session, portfolio: Portfolio, instrument: Instrument | None, payload: TransactionCreate
+) -> Transaction:
+    """Single source of truth for turning a validated `TransactionCreate`
+    into persisted rows — used by both the manual
+    `POST /portfolios/{id}/transactions` endpoint and CSV import, so the two
+    paths can never drift apart on business rules (dedup, oversell, private
+    valuations).
+
+    Raises `DuplicateTransactionError` (external_id already used in this
+    portfolio) or `ValueError` (oversell, bad split ratio, private valuation
+    on a non-`actif_prive` instrument) — the caller decides what that means
+    for its own flow (manual API: reject; CSV: report the row and continue).
+    Does not commit; the caller controls the transaction boundary.
+    """
+    if payload.external_id:
+        existing = db.scalars(
+            select(Transaction).where(
+                Transaction.portfolio_id == portfolio.id, Transaction.external_id == payload.external_id
+            )
+        ).first()
+        if existing is not None:
+            raise DuplicateTransactionError(
+                f"a transaction with external_id={payload.external_id!r} already exists", existing.id
+            )
+
+    tx = Transaction(
+        portfolio_id=portfolio.id,
+        instrument_id=instrument.id if instrument else None,
+        type=payload.type,
+        trade_date=payload.trade_date,
+        quantity=payload.quantity,
+        unit_price=payload.unit_price,
+        currency=payload.currency,
+        fees=payload.fees,
+        account=payload.account,
+        external_id=payload.external_id,
+        note=payload.note,
+    )
+    db.add(tx)
+    db.flush()  # assigns tx.id, and makes the row visible to rebuild_lots' query below
+
+    if instrument and payload.type in LOT_AFFECTING_TYPES:
+        rebuild_lots(db, portfolio.id, instrument.id)  # may raise ValueError
+
+    if payload.type == "valorisation_privee":
+        if instrument is None:
+            raise ValueError("valorisation_privee requires an instrument")  # enforced by TransactionCreate already
+        record_private_valuation(
+            db,
+            instrument,
+            valuation_date=payload.trade_date,
+            amount=payload.unit_price,
+            currency=payload.currency,
+            method=payload.method,
+            confidence=payload.confidence if payload.confidence is not None else Decimal("0.5"),
+            note=payload.note,
+        )
+
+    return tx
 
 
 def cash_balance_by_currency(db: Session, portfolio_id: str) -> dict[str, Decimal]:
