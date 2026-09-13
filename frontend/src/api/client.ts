@@ -5,7 +5,11 @@ import type {
   AuthResponse,
   CalendarEvent,
   CapmResult,
+  Comparison,
+  Consolidated,
   CorrelationResult,
+  DecisionAid,
+  DecisionOverview,
   Drawdown,
   EducationArticle,
   EducationSummary,
@@ -18,6 +22,7 @@ import type {
   ImportJob,
   ImportJobSummary,
   ImportPreset,
+  IncomeReport,
   Indicators,
   IngestionRun,
   Instrument,
@@ -27,20 +32,26 @@ import type {
   NewsItem,
   NewsProviderStatus,
   NewsRefresh,
+  Notifications,
   OverviewEntry,
   Page,
   Performance,
   Portfolio,
+  PortfolioCheckup,
   Position,
   PredictionStatus,
+  PriceAlert,
   PricePoint,
   PrivateValuation,
   ProvidersOverview,
   Quote,
+  RealizedReport,
   ReturnStats,
   Risk,
   SearchResult,
   SessionInfo,
+  StrategyRule,
+  StrategyStudy,
   TimelineEntry,
   Transaction,
   User,
@@ -467,4 +478,87 @@ export function rerunExperiment(experimentId: string): Promise<Experiment> {
 }
 export function deleteExperiment(experimentId: string): Promise<void> {
   return request(`/api/v1/prediction/experiments/${experimentId}`, { method: "DELETE" });
+}
+
+// --- consolidated wealth, realized gains, income ------------------------------
+
+export function getConsolidated(): Promise<Consolidated> {
+  return request("/api/v1/portfolios/consolidated");
+}
+
+export function getRealized(portfolioId: string, year?: number): Promise<RealizedReport> {
+  return request(`/api/v1/portfolios/${portfolioId}/analytics/realized`, { params: { year } });
+}
+
+export function getIncome(portfolioId: string, year?: number): Promise<IncomeReport> {
+  return request(`/api/v1/portfolios/${portfolioId}/analytics/income`, { params: { year } });
+}
+
+// --- strategy study, comparison ------------------------------------------------
+
+export interface StrategyParams extends Params {
+  rule: StrategyRule;
+  days?: number;
+  fast?: number;
+  slow?: number;
+  rsi_period?: number;
+  rsi_low?: number;
+  rsi_high?: number;
+  fee_bps?: number;
+}
+
+export function getStrategyStudy(instrumentId: string, params: StrategyParams): Promise<StrategyStudy> {
+  return request(`/api/v1/instruments/${instrumentId}/analytics/strategy-study`, { params });
+}
+
+export function compareInstruments(instrumentIds: string[], days = 365): Promise<Comparison> {
+  return request("/api/v1/market/compare", { params: { instrument_ids: instrumentIds.join(","), days } });
+}
+
+// --- informational alerts and notifications ------------------------------------
+
+export function listAlerts(instrumentId?: string): Promise<PriceAlert[]> {
+  return request("/api/v1/alerts", { params: { instrument_id: instrumentId } });
+}
+
+export function createAlert(input: { instrument_id: string; kind: string; threshold: string; note?: string }): Promise<PriceAlert> {
+  return request("/api/v1/alerts", { method: "POST", body: input });
+}
+
+export function rearmAlert(alertId: string): Promise<PriceAlert> {
+  return request(`/api/v1/alerts/${alertId}/rearm`, { method: "POST" });
+}
+
+export function deleteAlert(alertId: string): Promise<void> {
+  return request(`/api/v1/alerts/${alertId}`, { method: "DELETE" });
+}
+
+export function listNotifications(options: { unreadOnly?: boolean; limit?: number } = {}): Promise<Notifications> {
+  return request("/api/v1/notifications", { params: { unread_only: options.unreadOnly, limit: options.limit } });
+}
+
+export function markNotificationsRead(ids?: string[]): Promise<Notifications> {
+  return request("/api/v1/notifications/read", { method: "POST", body: { ids: ids ?? null } });
+}
+
+export function deleteNotification(notificationId: string): Promise<void> {
+  return request(`/api/v1/notifications/${notificationId}`, { method: "DELETE" });
+}
+
+// --- decision aid -----------------------------------------------------------
+
+export function getDecisionAid(instrumentId: string, refreshFundamentals = false): Promise<DecisionAid> {
+  return request(`/api/v1/instruments/${instrumentId}/decision-aid`, { params: { refresh_fundamentals: refreshFundamentals || undefined } });
+}
+
+export function getDecisionOverview(): Promise<DecisionOverview> {
+  return request("/api/v1/market/decision-overview");
+}
+
+export function getPortfolioCheckup(portfolioId: string, days = 365): Promise<PortfolioCheckup> {
+  return request(`/api/v1/portfolios/${portfolioId}/checkup`, { params: { days } });
+}
+
+export function setTargetAllocation(portfolioId: string, targets: Record<string, number> | null): Promise<Portfolio> {
+  return request(`/api/v1/portfolios/${portfolioId}/targets`, { method: "PATCH", body: { target_allocation: targets } });
 }

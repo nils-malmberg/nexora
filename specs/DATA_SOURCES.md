@@ -128,3 +128,15 @@ réel (adaptateurs `fixture`/`null`, HTTP intercepté par `respx`).
 `fixture` (`tests/fixtures/market_data/demo_quotes.json`) : données synthétiques pour les tests et
 le profil `demo` de docker-compose. `null` : aucune donnée de marché vivante (saisie manuelle
 uniquement). Aucun des deux n'effectue de requête réseau.
+
+## Fondamentaux (aide à la décision)
+
+`NEXORA_MARKET_FUNDAMENTALS_PROVIDER` (`finnhub` par défaut, `fixture`, `null`). Finnhub `/stock/metric?metric=all`
+(ratios de valorisation, croissance, rentabilité, dette, bêta, extrêmes 52 semaines) et `/stock/recommendation`
+(consensus des analystes), tous deux sur l’offre gratuite avec `FINNHUB_API_KEY`. Un seul instantané par
+instrument, rafraîchi au plus toutes les `NEXORA_FUNDAMENTALS_FRESHNESS_HOURS` (24 h), sous le budget `finnhub` et
+le disjoncteur ; un échec est mémorisé une heure. Seules les actions du catalogue partagé sont concernées (un ETF,
+une crypto ou un instrument privé répond « non pris en charge » sans appel). Le symbole envoyé est celui du
+fournisseur d’actions s’il s’agit de Finnhub, sinon le symbole de l’instrument (identique pour les valeurs
+américaines ; pour une place européenne, Finnhub attend le suffixe de place, ex. `AIR.PA`). Sans clé, la section
+fondamentale de l’aide à la décision est marquée « non configurée » et l’interface explique quoi faire.

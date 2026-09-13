@@ -14,7 +14,13 @@ from app.config import settings
 from app.market import registry
 from app.models import Provider, User
 from app.news import auto as news_auto
-from app.schemas.providers import AutoNewsOut, MarketProviderPublicOut, ProvidersOverviewOut, ProviderStatusOut
+from app.schemas.providers import (
+    AutoNewsOut,
+    FundamentalsSourceOut,
+    MarketProviderPublicOut,
+    ProvidersOverviewOut,
+    ProviderStatusOut,
+)
 
 router = APIRouter(prefix="/api/v1/providers", tags=["providers"])
 
@@ -65,9 +71,39 @@ def providers_status(user: User = Depends(get_current_user), db: Session = Depen
         for p in db.scalars(select(Provider).order_by(Provider.name)).all()
     ]
     configured = news_auto.is_configured()
+    fundamentals_provider = settings.market_fundamentals_provider
+    if fundamentals_provider == "null":
+        fundamentals = FundamentalsSourceOut(
+            provider="null",
+            configured=False,
+            env_var=None,
+            detail="fondamentaux désactivés (NEXORA_MARKET_FUNDAMENTALS_PROVIDER=null)",
+        )
+    elif fundamentals_provider == "finnhub":
+        fundamentals = FundamentalsSourceOut(
+            provider="finnhub",
+            configured=configured,
+            env_var=settings.finnhub_api_key_env_var,
+            detail=(
+                "ratios de valorisation et consensus d'analystes (Finnhub, rafraîchis au plus une fois par jour)"
+                if configured
+                else (
+                    f"définissez {settings.finnhub_api_key_env_var} pour activer la partie fondamentale "
+                    "de l'aide à la décision"
+                )
+            ),
+        )
+    else:
+        fundamentals = FundamentalsSourceOut(
+            provider=fundamentals_provider,
+            configured=True,
+            env_var=None,
+            detail="fondamentaux servis par la fixture locale",
+        )
     return ProvidersOverviewOut(
         market=market,
         news=news,
+        fundamentals=fundamentals,
         auto_news=AutoNewsOut(
             provider="finnhub",
             configured=configured,

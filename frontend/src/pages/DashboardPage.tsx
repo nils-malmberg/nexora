@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
-import { errorMessage, getMarketOverview, getValuation, listInstrumentNews, listPortfolios, listUpcomingEvents } from "../api/client";
+import { errorMessage, getConsolidated, getMarketOverview, getValuation, listInstrumentNews, listPortfolios, listUpcomingEvents } from "../api/client";
+import { AllocationBar } from "../charts/AllocationBar";
 import { FreshnessBadge } from "../components/Badges";
 import { EventCard } from "../components/EventCard";
 import { NewsCard } from "../components/NewsCard";
 import { ProviderStatusBanner } from "../components/ProviderStatusBanner";
 import { formatAge, formatAmount, formatDateTime, formatPct } from "../format";
 import { href } from "../router";
-import type { CalendarEvent, NewsItem, OverviewEntry, Portfolio, User, Valuation } from "../types";
+import type { CalendarEvent, Consolidated, NewsItem, OverviewEntry, Portfolio, User, Valuation } from "../types";
+import { ASSET_CLASS_LABELS } from "../types";
 
 interface PortfolioCard {
   portfolio: Portfolio;
@@ -21,6 +23,7 @@ export function DashboardPage({ user }: { user: User }) {
   const [overview, setOverview] = useState<OverviewEntry[]>([]);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [news, setNews] = useState<NewsItem[]>([]);
+  const [consolidated, setConsolidated] = useState<Consolidated | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -28,10 +31,16 @@ export function DashboardPage({ user }: { user: User }) {
     let cancelled = false;
     (async () => {
       try {
-        const [portfolios, entries, upcoming] = await Promise.all([listPortfolios(), getMarketOverview(), listUpcomingEvents({ tz: user.display_timezone, limit: 8 })]);
+        const [portfolios, entries, upcoming, total] = await Promise.all([
+          listPortfolios(),
+          getMarketOverview(),
+          listUpcomingEvents({ tz: user.display_timezone, limit: 8 }),
+          getConsolidated().catch(() => null),
+        ]);
         const valuations = await Promise.all(portfolios.map((p) => getValuation(p.id).catch(() => null)));
         if (cancelled) return;
         setCards(portfolios.map((p, i) => ({ portfolio: p, valuation: valuations[i] })));
+        setConsolidated(total);
         setOverview(entries);
         setEvents(upcoming);
         // Latest news across tracked instruments (a handful each, merged, newest first).
@@ -80,6 +89,8 @@ export function DashboardPage({ user }: { user: User }) {
           </div>
         </section>
       )}
+
+      {consolidated && cards.length > 0 && <ConsolidatedSummary view={consolidated} multi={cards.length > 1} />}
 
       <h3>Portefeuilles</h3>
       {cards.length === 0 ? (
@@ -162,6 +173,47 @@ export function DashboardPage({ user }: { user: User }) {
           <h3>Dernières actualités</h3>
           {news.length === 0 ? <p className="empty-state">Aucune actualité collectée pour vos instruments (les sources se configurent dans Paramètres › Sources).</p> : news.map((item) => <NewsCard key={item.id} item={item} />)}
         </div>
+      </div>
+    </section>
+  );
+}
+
+/** One number for the whole wealth (every portfolio converted into the
+ * reference currency, rate provenance kept) and the global allocation. */
+function ConsolidatedSummary({ view, multi }: { view: Consolidated; multi: boolean }) {
+  const classLabel = (label: string) => (label === "tresorerie" ? "Trésorerie" : ASSET_CLASS_LABELS[label as keyof typeof ASSET_CLASS_LABELS] ?? label);
+  return (
+    <section aria-label="Patrimoine consolidé" className="consolidated">
+      <h3>Patrimoine {multi ? "consolidé" : ""}</h3>
+      <div className="card-grid">
+        <div className="card">
+          <h4>Valeur totale ({view.reference_currency})</h4>
+          <div className="big-number">{formatAmount(view.total_value, view.reference_currency)}</div>
+          <div className="muted">
+            positions {formatAmount(view.positions_value, view.reference_currency)} · trésorerie {formatAmount(view.cash, view.reference_currency)} · {view.portfolios.length} portefeuille(s)
+          </div>
+          {view.has_missing_prices && <span className="badge freshness-manquant">prix manquants</span>}
+          {view.unconverted_currencies.length > 0 && <span className="badge freshness-differe">non converti : {view.unconverted_currencies.join(", ")}</span>}
+          <div className="muted">
+            Valorisé le {formatDateTime(view.as_of)} · <a href={href("help", "patrimoine-consolide")}>méthode</a>
+          </div>
+        </div>
+        <div className="card">
+          <h4>Par classe d'actifs</h4>
+          <AllocationBar slices={view.by_asset_class.map((s) => ({ label: classLabel(s.label), share: s.share }))} />
+        </div>
+        {multi && (
+          <div className="card">
+            <h4>Par portefeuille</h4>
+            <AllocationBar slices={view.by_portfolio} />
+          </div>
+        )}
+        {view.by_currency.length > 1 && (
+          <div className="card">
+            <h4>Par devise</h4>
+            <AllocationBar slices={view.by_currency} />
+          </div>
+        )}
       </div>
     </section>
   );

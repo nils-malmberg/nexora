@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { logout as apiLogout, me } from "./api/client";
 import { setCsrfToken } from "./authStore";
 import { AdminPage } from "./pages/AdminPage";
+import { AlertsPage } from "./pages/AlertsPage";
 import { AnalysisPage } from "./pages/AnalysisPage";
 import { AuthPage } from "./pages/AuthPage";
 import { DashboardPage } from "./pages/DashboardPage";
@@ -14,6 +15,7 @@ import { PortfoliosPage } from "./pages/PortfoliosPage";
 import { PredictionPage } from "./pages/PredictionPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { HeaderSearch } from "./components/HeaderSearch";
+import { NotificationsBell } from "./components/NotificationsBell";
 import { href, useRoute } from "./router";
 import type { AuthResponse, User } from "./types";
 
@@ -91,6 +93,9 @@ export function App() {
     case "settings":
       page = <SettingsPage user={user} onAccountDeleted={() => setUser(null)} onUserUpdated={setUser} />;
       break;
+    case "alerts":
+      page = <AlertsPage />;
+      break;
     case "admin":
       page = user.is_admin ? <AdminPage /> : <p className="error-state">Réservé aux administrateurs.</p>;
       break;
@@ -114,6 +119,7 @@ export function App() {
           </nav>
           <div className="header-user">
             <HeaderSearch />
+            <NotificationsBell />
             <span className="muted">{user.display_name || user.email}</span>
             <button type="button" className="link-button" onClick={handleLogout}>
               Se déconnecter

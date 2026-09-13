@@ -185,6 +185,7 @@ export interface Portfolio {
   id: string;
   name: string;
   base_currency: string;
+  target_allocation: Record<string, number> | null;
   created_at: string;
   updated_at: string;
 }
@@ -671,6 +672,7 @@ export interface ProvidersOverview {
   market: MarketProviderPublic[];
   news: NewsProviderStatus[];
   auto_news: AutoNewsStatus;
+  fundamentals: FundamentalsSource;
   prediction_enabled: boolean;
   quote_freshness_minutes: number;
 }
@@ -858,4 +860,354 @@ export interface SessionInfo {
   last_seen_at: string;
   user_agent: string | null;
   current: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Consolidated wealth, realized gains, income
+// ---------------------------------------------------------------------------
+
+export interface ConsolidatedPortfolio {
+  id: string;
+  name: string;
+  base_currency: string;
+  total_value: string;
+  total_value_reference: string | null;
+  cash_reference: string | null;
+  positions: number;
+  has_missing_prices: boolean;
+  unconverted_currencies: string[];
+  fx_rate: string | null;
+  fx_source: string | null;
+}
+
+export interface Consolidated {
+  reference_currency: string;
+  as_of: string;
+  total_value: string;
+  cash: string;
+  positions_value: string;
+  portfolios: ConsolidatedPortfolio[];
+  by_portfolio: AllocationSlice[];
+  by_asset_class: AllocationSlice[];
+  by_instrument: AllocationSlice[];
+  by_currency: AllocationSlice[];
+  unconverted_currencies: string[];
+  has_missing_prices: boolean;
+}
+
+export interface RealizedSale {
+  transaction_id: string;
+  instrument_id: string;
+  symbol: string;
+  name: string;
+  trade_date: string;
+  quantity: string;
+  unit_price: string;
+  currency: string;
+  proceeds: string;
+  cost_basis: string | null;
+  realized_pnl: string | null;
+  realized_pnl_base: string | null;
+  holding_days: number | null;
+  mixed_currency: boolean;
+  fx_rate: string | null;
+  fx_source: string | null;
+}
+
+export interface RealizedTotal {
+  key: string;
+  label: string;
+  sales: number;
+  realized_pnl_base: string;
+  gains_base: string;
+  losses_base: string;
+}
+
+export interface RealizedReport {
+  base_currency: string;
+  year: number | null;
+  sales: RealizedSale[];
+  by_year: RealizedTotal[];
+  by_instrument: RealizedTotal[];
+  total_realized_pnl_base: string;
+  unconverted_currencies: string[];
+  mixed_currency_sales: number;
+  method: string;
+}
+
+export type IncomeRowType = "dividende" | "coupon" | "interet" | "frais" | "frais_transaction";
+
+export const INCOME_TYPE_LABELS: Record<IncomeRowType, string> = {
+  dividende: "Dividende",
+  coupon: "Coupon",
+  interet: "Intérêts",
+  frais: "Frais",
+  frais_transaction: "Frais de transaction",
+};
+
+export interface IncomeRow {
+  transaction_id: string;
+  trade_date: string;
+  type: IncomeRowType;
+  instrument_id: string | null;
+  symbol: string | null;
+  amount: string;
+  currency: string;
+  amount_base: string | null;
+  note: string | null;
+}
+
+export interface IncomeTotal {
+  key: string;
+  label: string;
+  income_base: string;
+  fees_base: string;
+  net_base: string;
+  count: number;
+}
+
+export interface IncomeReport {
+  base_currency: string;
+  year: number | null;
+  rows: IncomeRow[];
+  by_year: IncomeTotal[];
+  by_month: IncomeTotal[];
+  by_instrument: IncomeTotal[];
+  total_income_base: string;
+  total_fees_base: string;
+  unconverted_currencies: string[];
+  method: string;
+}
+
+// ---------------------------------------------------------------------------
+// Strategy study, comparison
+// ---------------------------------------------------------------------------
+
+export const STRATEGY_RULES = ["sma_cross", "price_above_sma", "rsi_reversion"] as const;
+export type StrategyRule = (typeof STRATEGY_RULES)[number];
+export const STRATEGY_RULE_LABELS: Record<StrategyRule, string> = {
+  sma_cross: "Croisement de moyennes mobiles (SMA rapide > SMA lente)",
+  price_above_sma: "Prix au-dessus de sa moyenne mobile",
+  rsi_reversion: "Retour à la moyenne du RSI (entrée sous le seuil bas, sortie au-dessus du seuil haut)",
+};
+
+export interface StrategyTrade {
+  entry_date: string;
+  exit_date: string | null;
+  entry_price: number;
+  exit_price: number | null;
+  return_pct: number | null;
+  holding_days: number | null;
+}
+
+export interface StrategyStudy {
+  instrument_id: string;
+  symbol: string;
+  currency: string;
+  has_sufficient_data: boolean;
+  observations: number;
+  rule: StrategyRule;
+  params: { fast: number; slow: number; rsi_period: number; rsi_low: number; rsi_high: number };
+  fee_bps: number;
+  dates: string[];
+  strategy_equity: number[];
+  benchmark_equity: number[];
+  invested: number[];
+  trades: StrategyTrade[];
+  n_trades: number;
+  exposure_share: number | null;
+  win_rate: number | null;
+  strategy_stats: ReturnStats | null;
+  benchmark_stats: ReturnStats | null;
+  method: string;
+  disclaimer: string;
+}
+
+export interface CompareSeries {
+  instrument: Instrument;
+  values: number[];
+  total_return: number | null;
+}
+
+export interface Comparison {
+  dates: string[];
+  base: number;
+  series: CompareSeries[];
+  observations: number;
+  method: string;
+}
+
+// ---------------------------------------------------------------------------
+// Informational alerts and notifications
+// ---------------------------------------------------------------------------
+
+export const ALERT_KINDS = ["price_above", "price_below", "move_pct"] as const;
+export type AlertKind = (typeof ALERT_KINDS)[number];
+export const ALERT_KIND_LABELS: Record<AlertKind, string> = {
+  price_above: "Cours au-dessus de",
+  price_below: "Cours en dessous de",
+  move_pct: "Variation quotidienne d'au moins (±%)",
+};
+
+export interface PriceAlert {
+  id: string;
+  instrument: Instrument;
+  kind: AlertKind;
+  kind_label: string;
+  threshold: string;
+  note: string | null;
+  active: boolean;
+  created_at: string;
+  triggered_at: string | null;
+  last_evaluated_at: string | null;
+  last_value: string | null;
+}
+
+export interface Notification {
+  id: string;
+  instrument_id: string | null;
+  alert_id: string | null;
+  kind: string;
+  title: string;
+  body: string;
+  created_at: string;
+  read_at: string | null;
+}
+
+export interface Notifications {
+  items: Notification[];
+  unread: number;
+}
+
+// ---------------------------------------------------------------------------
+// Decision aid
+// ---------------------------------------------------------------------------
+
+export type Reading = "favorable" | "defavorable" | "neutre" | "indisponible";
+export const READING_LABELS: Record<Reading, string> = {
+  favorable: "Favorable",
+  defavorable: "Défavorable",
+  neutre: "Neutre",
+  indisponible: "Indisponible",
+};
+export const READING_HINTS: Record<Reading, string> = {
+  favorable: "lecture manuel : plutôt favorable à un achat ou à la conservation",
+  defavorable: "lecture manuel : plutôt défavorable à un achat, favorable à une vente ou à l'abstention",
+  neutre: "la méthode ne tranche pas",
+  indisponible: "donnée manquante — jamais estimée",
+};
+export const FAMILY_LABELS: Record<string, string> = {
+  tendance: "Tendance",
+  momentum: "Momentum",
+  volatilite: "Volatilité",
+  valorisation: "Valorisation",
+  qualite: "Qualité de l'entreprise",
+  consensus: "Consensus",
+  risque: "Risque",
+  prediction: "Prédiction (expérimental)",
+  diversification: "Diversification",
+  allocation: "Allocation",
+  positions: "Positions",
+  donnees: "Données",
+};
+export const EVIDENCE_LABELS: Record<string, string> = { forte: "preuve forte", moyenne: "preuve moyenne", faible: "preuve faible" };
+
+export interface Signal {
+  key: string;
+  family: string;
+  horizon: "court_terme" | "long_terme" | "transversal";
+  label: string;
+  reading: Reading;
+  detail: string;
+  value: string | null;
+  strength: "faible" | "moyen" | "fort";
+  evidence: "forte" | "moyenne" | "faible";
+  help_slug: string | null;
+}
+
+export interface Tally {
+  favorable: number;
+  defavorable: number;
+  neutre: number;
+  indisponible: number;
+  available: number;
+}
+
+export interface HorizonSummary {
+  horizon: "court_terme" | "long_terme" | "transversal";
+  label: string;
+  tally: Tally;
+  text: string;
+}
+
+export interface FundamentalsStatus {
+  status: "fresh" | "cached" | "stale" | "unavailable" | "not_supported" | "not_configured";
+  reason: string | null;
+  provider: string | null;
+  as_of: string | null;
+  source: string | null;
+  license_note: string | null;
+  env_var: string | null;
+}
+
+export interface DecisionAid {
+  instrument: Instrument;
+  as_of: string;
+  observations: number;
+  price_source: string | null;
+  signals: Signal[];
+  tally: Tally;
+  horizons: HorizonSummary[];
+  overall: string;
+  fundamentals: FundamentalsStatus;
+  prediction_available: boolean;
+  news_last_7_days: number;
+  disclaimer: string;
+}
+
+export interface DecisionOverviewEntry {
+  instrument: Instrument;
+  held: boolean;
+  watched: boolean;
+  observations: number;
+  tally: Tally;
+  trend: Reading;
+  momentum: Reading;
+  rsi: string | null;
+  rsi_reading: Reading;
+  valuation: Reading;
+  overall: string;
+}
+
+export interface DecisionOverview {
+  entries: DecisionOverviewEntry[];
+  fundamentals_configured: boolean;
+  disclaimer: string;
+}
+
+export interface AllocationShare {
+  label: string;
+  share: number;
+  target: number | null;
+  drift: number | null;
+}
+
+export interface PortfolioCheckup {
+  portfolio_id: string;
+  base_currency: string;
+  as_of: string;
+  total_value: string;
+  signals: Signal[];
+  tally: Tally;
+  overall: string;
+  allocation: AllocationShare[];
+  has_targets: boolean;
+  disclaimer: string;
+}
+
+export interface FundamentalsSource {
+  provider: string;
+  configured: boolean;
+  env_var: string | null;
+  detail: string;
 }

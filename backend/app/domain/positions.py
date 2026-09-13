@@ -11,7 +11,7 @@ at a fabricated rate.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import ROUND_HALF_UP, Decimal
 
@@ -93,8 +93,29 @@ class LotState:
     source_transaction_id: str
 
 
-def replay_lots(transactions: list[Transaction]) -> list[LotState]:
+@dataclass
+class LotConsumption:
+    """One slice of a lot consumed by a sale — what the realized P&L of
+    that sale is built from (app/domain/realized.py)."""
+
+    quantity: Decimal
+    unit_cost: Decimal
+    currency: str
+    opened_at: datetime
+
+
+@dataclass
+class SaleMatch:
+    transaction: Transaction
+    consumptions: list[LotConsumption] = field(default_factory=list)
+
+
+def replay_lots(transactions: list[Transaction], sales: list[SaleMatch] | None = None) -> list[LotState]:
     """FIFO replay for one instrument's ordered, non-reversed transactions.
+
+    When `sales` is given, every `vente` is appended to it with the lot
+    slices it consumed, so realized gains use exactly the same matching as
+    the open positions (one FIFO implementation, never two).
 
     Raises ValueError if a sell would take quantity negative —
     specs/PORTFOLIO_IMPORTS.md: "Les ventes ne peuvent pas créer une quantité
@@ -116,6 +137,7 @@ def replay_lots(transactions: list[Transaction]) -> list[LotState]:
             )
         elif tx.type == "vente":
             remaining_to_sell = quantity
+            match = SaleMatch(transaction=tx)
             for lot in lots:
                 if remaining_to_sell <= 0:
                     break
@@ -124,6 +146,9 @@ def replay_lots(transactions: list[Transaction]) -> list[LotState]:
                 consumed = min(lot.quantity_remaining, remaining_to_sell)
                 lot.quantity_remaining -= consumed
                 remaining_to_sell -= consumed
+                match.consumptions.append(LotConsumption(consumed, lot.unit_cost, lot.currency, lot.opened_at))
+            if sales is not None:
+                sales.append(match)
             if remaining_to_sell > 0:
                 held = quantity - remaining_to_sell
                 raise ValueError(

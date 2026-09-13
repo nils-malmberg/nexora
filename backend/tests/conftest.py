@@ -17,6 +17,7 @@ os.environ.setdefault("NEXORA_ENVIRONMENT", "test")
 os.environ.setdefault("NEXORA_MARKET_EQUITY_PROVIDER", "fixture")
 os.environ.setdefault("NEXORA_MARKET_CRYPTO_PROVIDER", "null")
 os.environ.setdefault("NEXORA_MARKET_FX_PROVIDER", "fixture")
+os.environ.setdefault("NEXORA_MARKET_FUNDAMENTALS_PROVIDER", "fixture")
 os.environ.setdefault("NEXORA_PREDICTION_ENABLED", "true")
 os.environ.setdefault("NEXORA_PREDICTION_MIN_OBSERVATIONS", "120")
 

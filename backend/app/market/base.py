@@ -90,6 +90,44 @@ class HistoryResult:
 
 
 @dataclass
+class Fundamentals:
+    """Company fundamentals as published by the provider (all optional —
+    an ETF or a crypto-asset has none). Ratios are plain fractions
+    (0.035 = 3.5 %), never percents, so every reader applies one convention."""
+
+    as_of: datetime
+    source: str
+    license_note: str = ""
+    pe: Decimal | None = None
+    pb: Decimal | None = None
+    dividend_yield: Decimal | None = None
+    eps_growth: Decimal | None = None
+    revenue_growth: Decimal | None = None
+    roe: Decimal | None = None
+    net_margin: Decimal | None = None
+    debt_to_equity: Decimal | None = None
+    beta: Decimal | None = None
+    market_cap: Decimal | None = None
+    week52_high: Decimal | None = None
+    week52_low: Decimal | None = None
+    analyst_buy: int | None = None
+    analyst_hold: int | None = None
+    analyst_sell: int | None = None
+    analyst_period: str | None = None
+
+    def as_dict(self) -> dict:
+        out = {}
+        for key, value in self.__dict__.items():
+            if isinstance(value, Decimal):
+                out[key] = str(value)
+            elif isinstance(value, datetime):
+                out[key] = value.isoformat()
+            else:
+                out[key] = value
+        return out
+
+
+@dataclass
 class HealthStatus:
     healthy: bool
     detail: str
@@ -123,6 +161,10 @@ class MarketDataProvider(ABC):
 
     @abstractmethod
     def history(self, provider_symbol: str, start: datetime, end: datetime) -> HistoryResult: ...
+
+    def fundamentals(self, provider_symbol: str) -> Fundamentals | None:
+        """Optional capability (`capabilities.extra["fundamentals"]`)."""
+        raise MarketNotSupported(f"{self.name}: fundamentals not offered")
 
     def health(self) -> HealthStatus:
         return HealthStatus(healthy=True, detail="no health probe implemented")

@@ -301,3 +301,56 @@ def test_frankfurter_latest_and_series():
     series = provider.series("USD", "EUR", datetime(2026, 1, 12, tzinfo=UTC), datetime(2026, 1, 15, tzinfo=UTC))
     assert len(series) == 3  # the 14th (holiday) is simply absent, not interpolated
     assert series[datetime(2026, 1, 13, tzinfo=UTC)] == Decimal("0.921")
+
+
+@respx.mock
+def test_finnhub_fundamentals_converts_percents_and_reads_consensus(monkeypatch):
+    monkeypatch.setenv("FINNHUB_API_KEY", "k")
+    respx.get("https://finnhub.io/api/v1/stock/metric").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "metric": {
+                    "peTTM": 28.4,
+                    "pbQuarterly": 45.1,
+                    "dividendYieldIndicatedAnnual": 0.55,
+                    "epsGrowthTTMYoy": 9.8,
+                    "roeTTM": 150.2,
+                    "netProfitMarginTTM": 25.3,
+                    "totalDebt/totalEquityQuarterly": 1.72,
+                    "beta": 1.24,
+                    "52WeekHigh": 260.1,
+                    "52WeekLow": 169.2,
+                    "marketCapitalization": 3400000,
+                },
+                "metricType": "all",
+                "symbol": "AAPL",
+            },
+        )
+    )
+    respx.get("https://finnhub.io/api/v1/stock/recommendation").mock(
+        return_value=httpx.Response(
+            200,
+            json=[{"buy": 20, "hold": 10, "sell": 2, "strongBuy": 12, "strongSell": 1, "period": "2026-09-01"}],
+        )
+    )
+    f = FinnhubProvider().fundamentals("AAPL")
+    assert f.pe == Decimal("28.4") and f.pb == Decimal("45.1")
+    assert f.dividend_yield == Decimal("0.0055") and f.roe == Decimal("1.502")
+    assert f.net_margin == Decimal("0.253") and f.debt_to_equity == Decimal("1.72")
+    assert (f.analyst_buy, f.analyst_hold, f.analyst_sell, f.analyst_period) == (32, 10, 3, "2026-09-01")
+    assert f.as_dict()["pe"] == "28.40000000" and f.source == "finnhub"
+
+
+@respx.mock
+def test_finnhub_fundamentals_without_recommendation_and_empty_metric(monkeypatch):
+    monkeypatch.setenv("FINNHUB_API_KEY", "k")
+    respx.get("https://finnhub.io/api/v1/stock/metric").mock(
+        return_value=httpx.Response(200, json={"metric": {"peTTM": 12.0}, "symbol": "X"})
+    )
+    respx.get("https://finnhub.io/api/v1/stock/recommendation").mock(return_value=httpx.Response(500))
+    f = FinnhubProvider().fundamentals("X")
+    assert f.pe == Decimal("12") and f.analyst_buy is None
+    respx.get("https://finnhub.io/api/v1/stock/metric").mock(return_value=httpx.Response(200, json={"metric": {}}))
+    with pytest.raises(MarketNotFound):
+        FinnhubProvider().fundamentals("NOPE")

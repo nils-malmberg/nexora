@@ -22,6 +22,7 @@ from sqlalchemy import select
 
 from app.config import settings
 from app.db import SessionLocal
+from app.domain.alerts import evaluate_alerts, purge_old_notifications
 from app.market import service as market_service
 from app.models import Provider
 from app.news.auto import ensure_feeds_for_tracked, feeds_to_refresh
@@ -64,6 +65,10 @@ def refresh_market_data() -> None:
     try:
         summary = market_service.refresh_tracked(db)
         log_event(logger, 20, "market refresh finished", **summary)
+        # Alerts read the observations just stored: no extra provider call.
+        triggered = evaluate_alerts(db)
+        purged = purge_old_notifications(db)
+        log_event(logger, 20, "alerts evaluated", triggered=triggered, notifications_purged=purged)
     except Exception:
         logger.exception("unhandled error refreshing market data")
     finally:

@@ -16,8 +16,10 @@ from datetime import UTC, datetime
 from app.config import settings
 from app.market.base import (
     Bar,
+    Fundamentals,
     HealthStatus,
     HistoryResult,
+    MarketDataError,
     MarketDataProvider,
     MarketMisconfigured,
     MarketNotFound,
@@ -49,6 +51,7 @@ class FinnhubProvider(MarketDataProvider):
             real_time=False,
             attribution="Données : Finnhub",
             license_note=LICENSE_NOTE,
+            extra={"fundamentals": True},
         )
 
     def _token(self) -> str:
@@ -130,6 +133,58 @@ class FinnhubProvider(MarketDataProvider):
         return HistoryResult(
             bars=bars, currency="USD", source=self.name, retrieved_at=datetime.now(UTC), license_note=LICENSE_NOTE
         )
+
+    def fundamentals(self, provider_symbol: str) -> Fundamentals | None:
+        """`/stock/metric?metric=all` (basic financials) plus the analyst
+        recommendation trend — both on the free tier. Finnhub publishes
+        yields, growth rates and margins in percent: converted to fractions."""
+        payload = self._get("/stock/metric", {"symbol": provider_symbol, "metric": "all"})
+        metric = payload.get("metric") if isinstance(payload, dict) else None
+        if not isinstance(metric, dict) or not metric:
+            raise MarketNotFound(f"finnhub: no fundamentals for {provider_symbol}")
+
+        def pct(*keys):
+            for key in keys:
+                value = to_decimal(metric.get(key))
+                if value is not None:
+                    return value / 100
+            return None
+
+        def raw(*keys):
+            for key in keys:
+                value = to_decimal(metric.get(key))
+                if value is not None:
+                    return value
+            return None
+
+        result = Fundamentals(
+            as_of=datetime.now(UTC),
+            source=self.name,
+            license_note=LICENSE_NOTE,
+            pe=raw("peTTM", "peBasicExclExtraTTM", "peAnnual"),
+            pb=raw("pbQuarterly", "pbAnnual"),
+            dividend_yield=pct("dividendYieldIndicatedAnnual", "currentDividendYieldTTM"),
+            eps_growth=pct("epsGrowthTTMYoy", "epsGrowth5Y"),
+            revenue_growth=pct("revenueGrowthTTMYoy", "revenueGrowth5Y"),
+            roe=pct("roeTTM", "roeRfy"),
+            net_margin=pct("netProfitMarginTTM", "netProfitMarginAnnual"),
+            debt_to_equity=raw("totalDebt/totalEquityQuarterly", "totalDebt/totalEquityAnnual"),
+            beta=raw("beta"),
+            market_cap=raw("marketCapitalization"),
+            week52_high=raw("52WeekHigh"),
+            week52_low=raw("52WeekLow"),
+        )
+        try:
+            trend = self._get("/stock/recommendation", {"symbol": provider_symbol})
+        except MarketDataError:
+            trend = None  # the ratios stand on their own; the consensus is a bonus
+        if isinstance(trend, list) and trend and isinstance(trend[0], dict):
+            latest = trend[0]
+            result.analyst_buy = int(latest.get("strongBuy") or 0) + int(latest.get("buy") or 0)
+            result.analyst_hold = int(latest.get("hold") or 0)
+            result.analyst_sell = int(latest.get("sell") or 0) + int(latest.get("strongSell") or 0)
+            result.analyst_period = str(latest.get("period") or "") or None
+        return result
 
     def health(self) -> HealthStatus:
         if not os.environ.get(settings.finnhub_api_key_env_var):

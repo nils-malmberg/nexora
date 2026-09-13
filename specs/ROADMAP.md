@@ -16,4 +16,5 @@ Connecteurs optionnels en lecture seule, meilleure couverture obligations/privé
 Prédiction isolée et désactivée par défaut, walk-forward, monitoring de dérive et rapport de validation. Activation seulement après validation explicite.
 
 ## Plus tard, sous réserve
-Nouvelle couverture de données, partage contrôlé ou alertes informatives. Exécution d’ordres et recommandations personnalisées restent hors V1 et nécessitent une nouvelle étude réglementaire et de sécurité.
+Nouvelle couverture de données, partage contrôlé. Les alertes informatives (seuil de cours,
+variation quotidienne, notification dans l'application uniquement, aucune action) sont livrées. Exécution d’ordres et recommandations personnalisées restent hors V1 et nécessitent une nouvelle étude réglementaire et de sécurité.
