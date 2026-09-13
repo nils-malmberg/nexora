@@ -49,6 +49,48 @@ class FundamentalsStatusOut(BaseModel):
     env_var: str | None
 
 
+class VerdictOut(BaseModel):
+    horizon: str
+    label: str
+    orientation: str  # achat | vente | attendre
+    orientation_label: str
+    confidence: str
+    text: str
+    buy_case: list[str]
+    sell_case: list[str]
+    available: int
+
+
+class LevelsOut(BaseModel):
+    price: float
+    atr: float | None
+    stop_loss: float | None
+    stop_loss_pct: float | None
+    target: float | None
+    target_pct: float | None
+    risk_reward: float | None
+    trailing_stop: float | None
+    supports: list[float]
+    resistances: list[float]
+    high_52w: float | None
+    low_52w: float | None
+    position_size: int | None
+    capital: float
+    risk_pct: float
+    risk_amount: float
+    method: str
+
+
+class HolderViewOut(BaseModel):
+    held: bool
+    entry_price: float | None
+    pnl_pct: float | None
+    orientation: str
+    label: str
+    text: str
+    below_stop: bool | None
+
+
 class DecisionAidOut(BaseModel):
     instrument: InstrumentOut
     as_of: datetime
@@ -58,9 +100,49 @@ class DecisionAidOut(BaseModel):
     tally: TallyOut
     horizons: list[HorizonOut]
     overall: str
+    verdicts: list[VerdictOut]
+    orientation: str
+    orientation_label: str
+    orientation_confidence: str
+    orientation_text: str
+    levels: LevelsOut | None
+    holder: HolderViewOut | None
     fundamentals: FundamentalsStatusOut
     prediction_available: bool
     news_last_7_days: int
+    disclaimer: str
+
+
+class OrientationStatsOut(BaseModel):
+    orientation: str
+    label: str
+    count: int
+    mean_return: float | None
+    median_return: float | None
+    hit_rate: float | None
+    worst: float | None
+    best: float | None
+
+
+class TimelinePointOut(BaseModel):
+    as_of: datetime
+    orientation: str
+    close: float
+
+
+class PastValidationOut(BaseModel):
+    instrument_id: str
+    symbol: str
+    horizon_days: int
+    evaluations: int
+    start: datetime | None
+    end: datetime | None
+    by_orientation: list[OrientationStatsOut]
+    baseline_mean_return: float | None
+    baseline_hit_rate: float | None
+    timeline: list[TimelinePointOut]
+    text: str
+    method: str
     disclaimer: str
 
 
@@ -68,6 +150,9 @@ class DecisionOverviewEntry(BaseModel):
     instrument: InstrumentOut
     held: bool
     watched: bool
+    orientation: str = "attendre"
+    orientation_label: str = "Attendre / observer"
+    orientation_confidence: str = "faible"
     observations: int
     tally: TallyOut
     trend: str  # reading of tendance_sma

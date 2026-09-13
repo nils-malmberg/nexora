@@ -1144,3 +1144,388 @@ def portfolio_checkup(inp: CheckupInput) -> PortfolioCheckup:
     else:
         overall = f"{t.defavorable} point{'s' if t.defavorable > 1 else ''} d'attention (marqué{'s' if t.defavorable > 1 else ''} « défavorable »), {t.favorable} point{'s' if t.favorable > 1 else ''} fort{'s' if t.favorable > 1 else ''}. Les points d'attention portent sur la structure du portefeuille, pas sur les titres eux-mêmes."
     return PortfolioCheckup(signals=signals, tally=t, overall=overall, allocation=allocation, drift=drift)
+
+
+# ---------------------------------------------------------------------------
+# Buy / sell framing: verdicts, arguments, levels, holder view
+# ---------------------------------------------------------------------------
+
+ORIENTATIONS = ("achat", "vente", "attendre")
+ORIENTATION_LABELS = {"achat": "Plutôt achat", "vente": "Plutôt vente", "attendre": "Attendre / observer"}
+HOLDER_LABELS = {
+    "achat": "Conserver, voire renforcer",
+    "vente": "Alléger ou vendre",
+    "attendre": "Conserver et surveiller",
+}
+
+
+@dataclass
+class Verdict:
+    horizon: str
+    label: str
+    orientation: str
+    confidence: str  # faible | moyenne | forte
+    text: str
+    buy_case: list[str] = field(default_factory=list)
+    sell_case: list[str] = field(default_factory=list)
+    available: int = 0
+
+
+def orientation_from_tally(t: Tally) -> tuple[str, str]:
+    """Majority rule with a margin: at least two more readings one way, and
+    a clear ratio. Returns (orientation, confidence)."""
+    if t.available == 0:
+        return "attendre", "faible"
+    margin = t.favorable - t.defavorable
+    if margin >= 2 and t.favorable >= 1.5 * max(t.defavorable, 1):
+        orientation = "achat"
+    elif margin <= -2 and t.defavorable >= 1.5 * max(t.favorable, 1):
+        orientation = "vente"
+    else:
+        return "attendre", "moyenne" if t.available >= 3 else "faible"
+    share = max(t.favorable, t.defavorable) / t.available
+    confidence = "forte" if share >= 0.7 and t.available >= 5 else "moyenne" if t.available >= 3 else "faible"
+    return orientation, confidence
+
+
+def _short(signal: Signal) -> str:
+    return f"{signal.label}" + (f" ({signal.value})" if signal.value else "")
+
+
+def verdicts(signals: list[Signal]) -> list[Verdict]:
+    out = []
+    for horizon in ("court_terme", "long_terme"):
+        subset = [s for s in signals if s.horizon == horizon]
+        t = tally(subset)
+        orientation, confidence = orientation_from_tally(t)
+        label = "Court terme (semaines à mois)" if horizon == "court_terme" else "Long terme (années)"
+        if t.available == 0:
+            text = "Aucune lecture disponible pour cet horizon."
+        elif orientation == "achat":
+            text = (
+                f"{t.favorable} méthode{_s(t.favorable)} sur {t.available} penche{'nt' if t.favorable > 1 else ''} "
+                f"pour un achat, {t.defavorable} contre : les arguments à l'achat dominent (confiance {confidence})."
+            )
+        elif orientation == "vente":
+            text = (
+                f"{t.defavorable} méthode{_s(t.defavorable)} sur {t.available} penche{'nt' if t.defavorable > 1 else ''} "
+                f"pour une vente ou une abstention, {t.favorable} pour un achat : les arguments à la vente dominent "
+                f"(confiance {confidence})."
+            )
+        else:
+            text = (
+                f"{t.favorable} pour l'achat, {t.defavorable} pour la vente, {t.neutre} neutre{_s(t.neutre)} : "
+                "pas de majorité nette — attendre un signal plus clair ou observer."
+            )
+        out.append(
+            Verdict(
+                horizon=horizon,
+                label=label,
+                orientation=orientation,
+                confidence=confidence,
+                text=text,
+                buy_case=[_short(s) for s in subset if s.reading == "favorable"],
+                sell_case=[_short(s) for s in subset if s.reading == "defavorable"],
+                available=t.available,
+            )
+        )
+    return out
+
+
+def overall_orientation(vs: list[Verdict]) -> tuple[str, str, str]:
+    """Combines the horizons: agreement → that orientation; disagreement →
+    'attendre' with the explanation. Returns (orientation, confidence, text)."""
+    court = next((v for v in vs if v.horizon == "court_terme"), None)
+    long_ = next((v for v in vs if v.horizon == "long_terme"), None)
+    have = [v for v in (court, long_) if v is not None and v.available > 0]
+    if not have:
+        return "attendre", "faible", "Pas assez de données pour se prononcer."
+    if len(have) == 1:
+        v = have[0]
+        which = "court terme" if v.horizon == "court_terme" else "long terme"
+        return (
+            v.orientation,
+            "faible" if v.confidence == "faible" else "moyenne",
+            f"Seul le {which} est couvert : {ORIENTATION_LABELS[v.orientation].lower()} sur cet horizon. "
+            + (
+                "Les fondamentaux manquent (source non configurée ou instrument sans bilan)."
+                if v.horizon == "court_terme"
+                else ""
+            ),
+        )
+    if court.orientation == long_.orientation:
+        o = court.orientation
+        conf = (
+            "forte"
+            if "forte" in (court.confidence, long_.confidence) and "faible" not in (court.confidence, long_.confidence)
+            else "moyenne"
+        )
+        if o == "attendre":
+            conf = "moyenne"
+        return o, conf, f"Court et long terme concordent : {ORIENTATION_LABELS[o].lower()}."
+    if "attendre" in (court.orientation, long_.orientation):
+        decided = court if court.orientation != "attendre" else long_
+        which = "court terme" if decided.horizon == "court_terme" else "long terme"
+        other = "long terme" if which == "court terme" else "court terme"
+        return (
+            decided.orientation,
+            "faible",
+            f"Le {which} penche pour {ORIENTATION_LABELS[decided.orientation].lower().replace('plutôt ', '')} ; "
+            f"le {other} ne tranche pas. Orientation faible : à confirmer.",
+        )
+    if court.orientation == "vente" and long_.orientation == "achat":
+        return (
+            "attendre",
+            "moyenne",
+            "Désaccord : les fondamentaux invitent à acheter mais la tendance est baissière — un investisseur "
+            "long terme peut acheter progressivement, un trader attend le retournement de la tendance.",
+        )
+    return (
+        "attendre",
+        "moyenne",
+        "Désaccord : la tendance est haussière mais les fondamentaux sont chers ou fragiles — un trader peut "
+        "suivre l'élan avec un stop serré, un investisseur long terme attend un meilleur prix.",
+    )
+
+
+@dataclass
+class Levels:
+    price: float
+    atr: float | None
+    stop_loss: float | None
+    stop_loss_pct: float | None
+    target: float | None
+    target_pct: float | None
+    risk_reward: float | None
+    trailing_stop: float | None
+    supports: list[float]
+    resistances: list[float]
+    high_52w: float | None
+    low_52w: float | None
+    position_size: int | None
+    capital: float
+    risk_pct: float
+    risk_amount: float
+    method: str = (
+        "stop de protection = cours − 2 × ATR(14) (au-delà du « bruit » normal) ; objectif = cours + 3 × ATR "
+        "(ratio gain/risque 1,5) ; stop suiveur = plus haut des 20 derniers jours − 2 × ATR ; supports et "
+        "résistances = creux et sommets locaux des 12 derniers mois regroupés à ±1,5 % ; taille de position = "
+        "montant risqué (capital × % risqué) / (cours − stop)"
+    )
+
+
+def _atr(highs: np.ndarray, lows: np.ndarray, closes: np.ndarray, window: int = 14) -> float | None:
+    n = len(closes)
+    if n < window + 1:
+        return None
+    prev = closes[:-1]
+    tr = np.maximum(highs[1:] - lows[1:], np.maximum(np.abs(highs[1:] - prev), np.abs(lows[1:] - prev)))
+    return float(tr[-window:].mean())
+
+
+def support_resistance(
+    closes: np.ndarray, *, window: int = 5, tolerance: float = 0.015
+) -> tuple[list[float], list[float]]:
+    """Local extrema over `window` bars each side, clustered at ±tolerance;
+    returns supports below and resistances above the last close, nearest
+    first, at most three each."""
+    n = len(closes)
+    if n < 2 * window + 1:
+        return [], []
+    levels = []
+    for i in range(window, n - window):
+        seg = closes[i - window : i + window + 1]
+        if closes[i] == seg.max() or closes[i] == seg.min():
+            levels.append(float(closes[i]))
+    levels.sort()
+    clusters: list[list[float]] = []
+    for level in levels:
+        if clusters and abs(level - clusters[-1][-1]) / clusters[-1][-1] <= tolerance:
+            clusters[-1].append(level)
+        else:
+            clusters.append([level])
+    centers = [sum(c) / len(c) for c in clusters if len(c) >= 2] or [c[0] for c in clusters]
+    price = float(closes[-1])
+    supports = sorted([c for c in centers if c < price * 0.995], reverse=True)[:3]
+    resistances = sorted([c for c in centers if c > price * 1.005])[:3]
+    return supports, resistances
+
+
+def compute_levels(closes, highs=None, lows=None, *, capital: float = 10_000.0, risk_pct: float = 1.0) -> Levels | None:
+    c = quant._f(closes)
+    if len(c) == 0:
+        return None
+    h = quant._f(highs) if highs is not None and len(highs) == len(c) else c
+    lo = quant._f(lows) if lows is not None and len(lows) == len(c) else c
+    price = float(c[-1])
+    atr = _atr(h, lo, c)
+    stop = price - 2 * atr if atr else None
+    target = price + 3 * atr if atr else None
+    year = c[-252:]
+    trailing = float(c[-20:].max()) - 2 * atr if atr and len(c) >= 20 else None
+    supports, resistances = support_resistance(year)
+    risk_amount = capital * risk_pct / 100.0
+    size = int(risk_amount // (price - stop)) if stop and price - stop > 0 else None
+    return Levels(
+        price=price,
+        atr=atr,
+        stop_loss=stop,
+        stop_loss_pct=(stop / price - 1.0) if stop else None,
+        target=target,
+        target_pct=(target / price - 1.0) if target else None,
+        risk_reward=((target - price) / (price - stop)) if stop and target and price - stop > 0 else None,
+        trailing_stop=trailing,
+        supports=supports,
+        resistances=resistances,
+        high_52w=float(year.max()) if len(year) else None,
+        low_52w=float(year.min()) if len(year) else None,
+        position_size=size,
+        capital=capital,
+        risk_pct=risk_pct,
+        risk_amount=risk_amount,
+    )
+
+
+@dataclass
+class HolderView:
+    entry_price: float | None
+    pnl_pct: float | None
+    orientation: str
+    label: str
+    text: str
+    below_stop: bool | None
+
+
+def holder_view(orientation: str, levels: Levels | None, entry_price: float | None) -> HolderView:
+    price = levels.price if levels else None
+    pnl = (price / entry_price - 1.0) if price and entry_price else None
+    below = (price < levels.trailing_stop) if levels and levels.trailing_stop and price else None
+    label = HOLDER_LABELS[orientation]
+    if orientation == "achat":
+        text = "Les méthodes qui justifieraient un achat justifient aussi de conserver."
+    elif orientation == "vente":
+        text = "Les méthodes penchent contre le titre : alléger ou vendre est la lecture manuel — le prix d'achat n'y change rien."
+    else:
+        text = "Pas de signal net : conserver en surveillant le stop suiveur."
+    if pnl is not None:
+        text += f" Depuis votre entrée : {pnl * 100:+.1f} %."
+        if pnl < -0.3:
+            text += " Une perte de plus de 30 % ne se « rattrape » pas mécaniquement : la question est si vous achèteriez aujourd'hui à ce prix."
+    if below:
+        text += " Le cours est passé sous le stop suiveur : la tendance qui justifiait la position s'est retournée."
+    return HolderView(entry_price, pnl, orientation, label, text, below)
+
+
+# ---------------------------------------------------------------------------
+# Past validation of the technical readings ("quand ce bilan disait achat…")
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class OrientationStats:
+    orientation: str
+    label: str
+    count: int
+    mean_return: float | None
+    median_return: float | None
+    hit_rate: float | None  # share of cases where the orientation was "right"
+    worst: float | None
+    best: float | None
+
+
+@dataclass
+class PastValidation:
+    horizon_days: int
+    evaluations: int
+    start: object | None
+    end: object | None
+    by_orientation: list[OrientationStats]
+    baseline_mean_return: float | None
+    baseline_hit_rate: float | None
+    timeline: list[tuple]  # (date, orientation, close)
+    text: str
+    method: str = (
+        "à chaque date passée, les lectures techniques sont recalculées avec les seules données antérieures "
+        "(aucune fuite du futur) et l'orientation court terme en est déduite ; on mesure ensuite le rendement "
+        "réalisé sur l'horizon suivant. Référence : toutes les dates confondues (acheter n'importe quand)"
+    )
+
+
+def past_validation(
+    dates: list, closes, *, horizon_days: int = 20, min_history: int = 274, max_points: int = 400
+) -> PastValidation:
+    c = quant._f(closes)
+    n = len(c)
+    usable = list(range(min_history, n - horizon_days))
+    if len(usable) > max_points:
+        step = math.ceil(len(usable) / max_points)
+        usable = usable[::step]
+    rows: list[tuple[object, str, float, float]] = []
+    for i in usable:
+        signals = [s for s in technical_signals(c[: i + 1]) if s.horizon == "court_terme"]
+        orientation, _ = orientation_from_tally(tally(signals))
+        fwd = c[i + horizon_days] / c[i] - 1.0 if c[i] > 0 else float("nan")
+        if math.isfinite(fwd):
+            rows.append((dates[i], orientation, float(c[i]), fwd))
+    by = []
+    for o in ORIENTATIONS:
+        r = np.array([x[3] for x in rows if x[1] == o])
+        if len(r) == 0:
+            by.append(OrientationStats(o, ORIENTATION_LABELS[o], 0, None, None, None, None, None))
+            continue
+        hit = float((r > 0).mean()) if o != "vente" else float((r < 0).mean())
+        by.append(
+            OrientationStats(
+                o,
+                ORIENTATION_LABELS[o],
+                len(r),
+                float(r.mean()),
+                float(np.median(r)),
+                hit,
+                float(r.min()),
+                float(r.max()),
+            )
+        )
+    all_r = np.array([x[3] for x in rows])
+    base_mean = float(all_r.mean()) if len(all_r) else None
+    base_hit = float((all_r > 0).mean()) if len(all_r) else None
+    achat = next(b for b in by if b.orientation == "achat")
+    vente = next(b for b in by if b.orientation == "vente")
+    if not rows:
+        text = (
+            "Pas assez d'historique pour tester la méthode sur le passé (il faut plus d'un an de cours plus l'horizon)."
+        )
+    else:
+        parts = [f"Sur {len(rows)} dates passées, horizon {horizon_days} jours."]
+        if achat.count:
+            parts.append(
+                f"Quand le bilan court terme disait « achat » ({achat.count} fois), le cours était plus haut "
+                f"{horizon_days} jours après dans {achat.hit_rate * 100:.0f} % des cas (rendement moyen {achat.mean_return * 100:+.1f} %)."
+            )
+        if vente.count:
+            parts.append(
+                f"Quand il disait « vente » ({vente.count} fois), le cours était plus bas ensuite dans "
+                f"{vente.hit_rate * 100:.0f} % des cas (rendement moyen {vente.mean_return * 100:+.1f} %)."
+            )
+        if base_hit is not None:
+            parts.append(
+                f"Référence acheter n'importe quand : hausse dans {base_hit * 100:.0f} % des cas, {base_mean * 100:+.1f} % en moyenne."
+            )
+        edge = achat.hit_rate is not None and base_hit is not None and achat.hit_rate > base_hit + 0.05
+        parts.append(
+            "Sur ce titre et cette période, la méthode a apporté un avantage par rapport au hasard."
+            if edge
+            else "Sur ce titre et cette période, la méthode n'a pas fait mieux que d'acheter n'importe quand — ce qui est le résultat le plus fréquent, et une leçon en soi."
+        )
+        text = " ".join(parts)
+    return PastValidation(
+        horizon_days=horizon_days,
+        evaluations=len(rows),
+        start=rows[0][0] if rows else None,
+        end=rows[-1][0] if rows else None,
+        by_orientation=by,
+        baseline_mean_return=base_mean,
+        baseline_hit_rate=base_hit,
+        timeline=[(d, o, close) for d, o, close, _ in rows],
+        text=text,
+    )

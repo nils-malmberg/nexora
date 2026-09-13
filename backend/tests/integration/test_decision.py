@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from sqlalchemy import select
 
 from app.config import settings
@@ -259,3 +260,55 @@ def test_prediction_reading_appears_after_an_experiment(registered_user, db_sess
     pred = next(s for s in body["signals"] if s["key"] == "prediction")
     assert pred["family"] == "prediction" and "expérimental" in pred["label"].lower()
     assert db_session.scalar(select(OhlcBar.id).where(OhlcBar.instrument_id == instrument.id).limit(1)) is not None
+
+
+def test_decision_aid_gives_buy_sell_verdicts_levels_and_holder_view(registered_user, db_session):
+    client, csrf, _ = registered_user
+    instrument = _demo_instrument(client, csrf)
+    _seed_bars(db_session, instrument["id"], n=400, seed=21)
+    body = client.get(
+        f"/api/v1/instruments/{instrument['id']}/decision-aid", params={"capital": 5000, "risk_pct": 2}
+    ).json()
+    assert body["orientation"] in ("achat", "vente", "attendre") and body["orientation_label"]
+    assert {v["horizon"] for v in body["verdicts"]} == {"court_terme", "long_terme"}
+    court = next(v for v in body["verdicts"] if v["horizon"] == "court_terme")
+    assert len(court["buy_case"]) + len(court["sell_case"]) <= court["available"]
+    levels = body["levels"]
+    assert levels["stop_loss"] < levels["price"] < levels["target"] and levels["risk_reward"] > 1
+    assert levels["capital"] == 5000 and levels["risk_amount"] == 100
+    assert levels["position_size"] == int(100 // (levels["price"] - levels["stop_loss"]))
+    assert body["holder"] is None
+
+    item = client.post("/api/v1/market/watchlist", json={"instrument_id": instrument["id"]}, headers=_h(csrf)).json()
+    client.patch(f"/api/v1/market/watchlist/{item['id']}", json={"held": True, "entry_price": "10"}, headers=_h(csrf))
+    body = client.get(f"/api/v1/instruments/{instrument['id']}/decision-aid").json()
+    holder = body["holder"]
+    assert holder["held"] is True and holder["entry_price"] == 10.0
+    assert holder["pnl_pct"] == pytest.approx(body["levels"]["price"] / 10 - 1)
+    assert holder["label"] and "Depuis votre entrée" in holder["text"]
+    overview = client.get("/api/v1/market/decision-overview").json()
+    entry = overview["entries"][0]
+    assert entry["held"] is True and entry["orientation"] == body["orientation"]
+
+
+def test_past_validation_is_leak_free_and_cached(registered_user, db_session):
+    client, csrf, _ = registered_user
+    instrument = _shared_instrument(db_session, "PAST")
+    _seed_bars(db_session, instrument.id, n=500, seed=4)
+    resp = client.get(f"/api/v1/instruments/{instrument.id}/decision-aid/past", params={"horizon_days": 10})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["horizon_days"] == 10 and body["evaluations"] > 100
+    assert {b["orientation"] for b in body["by_orientation"]} == {"achat", "vente", "attendre"}
+    assert sum(b["count"] for b in body["by_orientation"]) == body["evaluations"] == len(body["timeline"])
+    assert body["baseline_hit_rate"] is not None and "Référence" in body["text"]
+    # Every timeline point is at least 274 bars after the start of history and
+    # leaves `horizon` bars after it: the last point cannot be the last bar.
+    last_bar = db_session.scalars(
+        select(OhlcBar).where(OhlcBar.instrument_id == instrument.id).order_by(OhlcBar.as_of.desc())
+    ).first()
+    assert body["timeline"][-1]["as_of"] < last_bar.as_of.isoformat()
+    short = _shared_instrument(db_session, "SHORT")
+    _seed_bars(db_session, short.id, n=100, seed=5)
+    empty = client.get(f"/api/v1/instruments/{short.id}/decision-aid/past").json()
+    assert empty["evaluations"] == 0 and "Pas assez" in empty["text"]
