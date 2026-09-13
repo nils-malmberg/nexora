@@ -25,6 +25,12 @@ services:
       # by the browser over HTTP. Any real deployment must sit behind HTTPS
       # and set this back to true (the app default).
       NEXORA_SESSION_COOKIE_SECURE: ${NEXORA_SESSION_COOKIE_SECURE:-false}
+      # Market providers / prediction switch: settable from .env or the shell
+      # (compose only forwards variables that are declared here).
+      NEXORA_MARKET_EQUITY_PROVIDER: ${NEXORA_MARKET_EQUITY_PROVIDER:-yahoo}
+      NEXORA_MARKET_CRYPTO_PROVIDER: ${NEXORA_MARKET_CRYPTO_PROVIDER:-coingecko}
+      NEXORA_MARKET_FX_PROVIDER: ${NEXORA_MARKET_FX_PROVIDER:-frankfurter}
+      NEXORA_PREDICTION_ENABLED: ${NEXORA_PREDICTION_ENABLED:-false}
       SEED_DEMO_DATA: ${SEED_DEMO_DATA:-0}
       DEMO_FIXTURES_BASE_URL: ${DEMO_FIXTURES_BASE_URL:-http://demo-fixtures:80}
     depends_on:
@@ -50,6 +56,9 @@ services:
       NEXORA_DATABASE_URL: ${NEXORA_DATABASE_URL:-postgresql+psycopg://nexora:change-me-locally@postgres:5432/nexora}
       SKIP_MIGRATIONS: "1" # safe only because we wait for api to be healthy (migrations done)
       SEED_DEMO_DATA: "0" # api is the single seeder
+      NEXORA_MARKET_EQUITY_PROVIDER: ${NEXORA_MARKET_EQUITY_PROVIDER:-yahoo}
+      NEXORA_MARKET_CRYPTO_PROVIDER: ${NEXORA_MARKET_CRYPTO_PROVIDER:-coingecko}
+      NEXORA_MARKET_FX_PROVIDER: ${NEXORA_MARKET_FX_PROVIDER:-frankfurter}
     command: ["python", "-m", "app.worker.scheduler"]
     ports:
       - "9100:9100" # worker's own Prometheus /metrics (separate process from the api)
