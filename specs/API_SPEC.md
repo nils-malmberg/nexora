@@ -10,6 +10,8 @@ Base `/api/v1`, JSON, UTC, identifiants opaques. Authentification via session/to
 - `GET /analytics/performance`, `/allocation`, `/risk`
 - `GET /portfolios/consolidated` (tous les portefeuilles dans la devise de référence) ; `GET /portfolios/{id}/analytics/realized?year=`, `/income?year=`
 - `GET /instruments/{id}/analytics/strategy-study?rule=&fast=&slow=&rsi_period=&rsi_low=&rsi_high=&fee_bps=&days=` ; `GET /market/compare?instrument_ids=&days=`
+- `GET /config` (interrupteurs produit) ; `POST /auth/local` (mode mono-utilisateur) ; `PATCH /market/watchlist/{id}` (held, entry_price, quantity, note)
+- `GET /instruments/{id}/decision-aid?capital=&risk_pct=` (verdicts achat/vente par horizon, niveaux, vue détenteur) ; `GET /instruments/{id}/decision-aid/past?horizon_days=` ; `GET /instruments/{id}/chart-tools?days=` ; `POST /prediction/auto/{instrument_id}?horizon=`
 - `GET /instruments/{id}/decision-aid?refresh_fundamentals=` ; `GET /market/decision-overview` (données en cache uniquement) ; `GET /portfolios/{id}/checkup?days=` ; `PATCH /portfolios/{id}/targets` (allocation cible par classe, fractions sommant à 1)
 - `GET/POST /alerts`, `POST /alerts/{id}/rearm`, `DELETE /alerts/{id}` ; `GET /notifications?unread_only=`, `POST /notifications/read`, `DELETE /notifications/{id}` — informatives uniquement, aucune action
 - `GET /education/{slug}`

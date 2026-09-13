@@ -1,47 +1,37 @@
-# NeXora — Dashboard multi-actifs
+# NeXora — Analyse de marché et aide à la décision
 
-Une seule application (`specs/README.md`) pour suivre les marchés et un patrimoine multi-actifs :
-actions, ETF, indices, crypto-actifs, obligations et actifs privés.
+Une seule application, sans compte à créer, pour qu'une personne qui débute puisse analyser un
+titre comme sur un site de courtage — et comprendre ce qu'elle regarde. Actions, ETF, indices,
+crypto-actifs.
 
-- **Marchés** : recherche de n'importe quel instrument coté (Yahoo Finance / Finnhub pour les
-  actions et ETF, CoinGecko pour les crypto-actifs), fiche avec cotation datée et sourcée,
-  chandeliers OHLCV, SMA/EMA/Bollinger/RSI/MACD/ATR/stochastique/OBV paramétrables, liste de
-  suivi et **ajout au portefeuille en un clic** (enregistrement d'un achat — jamais un ordre).
-- **Portefeuilles** : transactions immuables (annulation auditée), positions FIFO, coût de revient
-  et plus-values latentes, valorisation dans la devise de référence avec taux de change BCE datés,
-  **import des exports Trade Republic et Revolut** (format reconnu automatiquement, titres retrouvés
-  par ISIN) ou de tout CSV (aperçu, mapping, erreurs par ligne, déduplication), historique,
-  allocation, TWR/MWR, **plus-values réalisées (FIFO) et revenus/frais par année**, et un
-  **patrimoine consolidé** de tous les portefeuilles dans la devise de référence.
-- **Analyse** : statistiques de rendement et de risque (volatilité, Sharpe, Sortino, Calmar,
-  asymétrie, kurtosis), drawdown, VaR/CVaR (historique, gaussienne, Cornish-Fisher), MEDAF (bêta,
-  alpha, R²), matrice de corrélation, frontière efficiente de Markowitz, simulations de Monte
-  Carlo, **étude de stratégie** (backtest pédagogique d'une règle SMA/RSI contre « acheter et
-  conserver », signal appliqué le lendemain, frais inclus) et **comparaison base 100** — chaque
-  mesure avec méthode, période et limites.
-- **Actualités & événements** : actualités par société récupérées automatiquement (Finnhub, clé
-  gratuite) pour chaque action ou ETF suivi, plus flux RSS/JSON/ICS configurables ; chronologie et
-  calendrier, dédoublonnage et scoring.
-- **Aide à la décision (un bouton)** : sur chaque fiche, une quinzaine de méthodes reconnues appliquées
-  aux données disponibles — tendance (moyennes 50/200, golden cross), momentum 12 mois, RSI, MACD, Bollinger,
-  fourchette 52 semaines, volatilité, pire repli, Sharpe, PER, P/B, dividende, croissance, ROE, marge, dette,
-  consensus des analystes, bêta, prédiction expérimentale — chacune avec sa lecture (favorable / défavorable /
-  neutre / indisponible), son explication en français simple, son seuil et son niveau de preuve ; comptées par
-  horizon, jamais pondérées en verdict. **Bilan rapide** de tous les instruments suivis sur la page Marchés,
-  **bilan de portefeuille** (concentration, diversification, corrélation, risque, écart à votre allocation cible).
-  Fondamentaux via Finnhub (clé gratuite). Information, jamais conseil personnalisé ni exécution.
-- **Alertes informatives** : seuil de cours ou variation quotidienne sur un instrument, évaluées
-  sur les données en cache (jamais de requête supplémentaire), notification dans l'application —
-  jamais un ordre.
-- **Aide** : 27 articles sur la théorie derrière chaque chiffre (valorisation, FIFO, TWR/MWR,
-  ratios, VaR, MEDAF, Markowitz, efficience des marchés, indicateurs techniques, walk-forward,
-  métamodèles…), consultables depuis chaque écran.
-- **Prédiction (expérimental, désactivé par défaut)** : entraînement d'un métamodèle (stacking de
-  ridge, forêt aléatoire, gradient boosting, benchmark naïf) validé en walk-forward chronologique,
-  avec intervalles calibrés et métriques hors échantillon — outil pédagogique, jamais un signal.
+- **« Acheter ou vendre ? » en un bouton** : une vingtaine de méthodes reconnues appliquées au titre
+  (tendance, momentum, RSI, MACD, Bollinger, fourchette 52 semaines, volatilité, Sharpe ; PER, P/B,
+  dividende, croissance, ROE, marge, dette, consensus d'analystes ; prédiction statistique), chacune
+  avec sa lecture, son explication en français simple et son niveau de preuve. **Orientation par
+  horizon** (court terme / long terme) avec **arguments pour acheter et pour vendre**, **niveaux pour
+  agir** (stop de protection, objectif, gain/risque, stop suiveur, supports/résistances, taille de
+  position selon le capital et le risque accepté), lecture **« conserver ou vendre »** si vous
+  déclarez détenir le titre, et **test de la méthode sur le passé du titre** (« quand ce bilan disait
+  achat, le cours était plus haut 20 jours après dans X % des cas », contre acheter n'importe quand).
+- **Graphique et outils** : chandeliers / barres / ligne / aire, échelle log, volume, SMA, EMA,
+  Bollinger, **Ichimoku, SAR parabolique, points pivots, retracements de Fibonacci, supports et
+  résistances, figures de chandeliers** (chacun avec sa lecture), droites de tendance et niveaux
+  tracés à la main, RSI, MACD, stochastique, ATR, OBV paramétrables, comparaison base 100.
+- **Prédiction** : un clic entraîne un métamodèle (ridge, forêt aléatoire, gradient boosting) validé
+  en walk-forward sur le passé du titre ; rendement attendu avec intervalle, précision de direction
+  hors échantillon, test « suivre le modèle » contre « rester investi ». Laboratoire complet pour
+  configurer horizons et modèles.
+- **Étude de stratégie** (backtest d'une règle SMA/RSI contre acheter-conserver), **analyse
+  quantitative** (Sharpe, VaR, drawdown, MEDAF, Monte Carlo), **actualités** par société (Finnhub),
+  événements, **alertes** de cours, **liste de suivi** avec « je détiens ce titre ».
+- **Aide** : 31 articles — chaque chiffre renvoie à la théorie et à ses limites.
 
-**Consultation et analyse uniquement. Aucun ordre financier, aucune recommandation personnalisée,
-aucune exécution.**
+**Information et pédagogie uniquement : aucun ordre n'est passé, aucune recommandation adaptée à
+votre situation n'est donnée.** Les méthodes décrivent le titre ; la décision reste la vôtre.
+
+> La gestion de portefeuille (transactions, imports Trade Republic/Revolut, plus-values, revenus,
+> bilan de portefeuille) reste dans le code mais est **désactivée par défaut**
+> (`NEXORA_PORTFOLIOS_ENABLED=false`) : trop lourde à alimenter sans connecteur. Réactivable.
 
 ## Structure
 
@@ -58,7 +48,9 @@ cp .env.example .env          # ajustez au besoin ; jamais commité
 docker compose up --build
 ```
 
-- Application : http://localhost:5173 (le premier compte créé est administrateur)
+- Application : http://localhost:5173 — aucun compte : une session locale s'ouvre toute seule
+  (`NEXORA_SINGLE_USER=true`, pour une machine personnelle ou un réseau de confiance ; passez à
+  `false` pour exiger des comptes, le premier créé étant administrateur)
 - API : http://localhost:8000/docs · santé `/health` · métriques `/metrics` (worker : :9100)
 - PostgreSQL : localhost:5432
 
@@ -75,15 +67,13 @@ NEXORA_MARKET_FX_PROVIDER=fixture docker compose --profile demo up --build
 > ce schéma unifié, sans chemin de migration automatique. Repartez d'un volume vide
 > (`docker compose down -v`) puis relancez.
 
-## Suivre un compte Trade Republic ou Revolut
+## Portefeuille (désactivé par défaut)
 
-Ces courtiers n'offrent pas d'API de lecture pour un compte personnel ; les « connecteurs » non
-officiels exigent vos identifiants et votre 2FA et donnent un accès complet au compte, ce que
-`specs/PORTFOLIO_IMPORTS.md` et `specs/SECURITY.md` excluent. La voie retenue est l'export de
-l'application (Revolut : relevé du compte titres en CSV ; Trade Republic : export des transactions
-en CSV), importé dans NeXora : le format est reconnu d'après les colonnes, les types d'opération
-sont convertis, les titres sont retrouvés par ISIN ou symbole, chaque ligne est vérifiée et rien
-n'est écrit avant confirmation. Un nouvel export importé plus tard ne crée pas de doublons.
+Avec `NEXORA_PORTFOLIOS_ENABLED=true`, l'application retrouve les portefeuilles, transactions,
+imports d'exports Trade Republic/Revolut (aucun connecteur avec identifiants : voir
+`specs/PORTFOLIO_IMPORTS.md`), plus-values réalisées, revenus et bilan de portefeuille. Sans cela,
+« Je détiens ce titre » sur la liste de suivi (prix d'entrée facultatif) suffit à l'aide à la
+décision pour parler de conserver ou vendre.
 
 ## Données de marché et respect des fournisseurs
 
