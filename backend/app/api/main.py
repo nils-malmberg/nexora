@@ -14,6 +14,7 @@ from app.api.routers import (
     admin,
     analytics,
     auth,
+    decision,
     education,
     events,
     imports,
@@ -85,6 +86,7 @@ for router in (
     auth.router,
     me.router,
     wealth.router,  # before portfolios: /portfolios/consolidated vs /portfolios/{id}
+    decision.router,
     portfolios.router,
     instruments.router,
     market.router,

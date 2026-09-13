@@ -245,6 +245,19 @@ class FxRate(Base):
     )
 
 
+class InstrumentFundamentals(Base):
+    """Latest fundamentals snapshot per instrument (one row, replaced on
+    refresh) — the decision aid reads this, never the provider directly."""
+
+    __tablename__ = "instrument_fundamentals"
+
+    instrument_id: Mapped[str] = mapped_column(ForeignKey("instruments.id", ondelete="CASCADE"), primary_key=True)
+    as_of: Mapped[datetime] = mapped_column(UTCDateTime)
+    source: Mapped[str] = mapped_column(String(40))
+    data: Mapped[dict] = mapped_column(JSONType, default=dict)
+    collected_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+
+
 class WatchlistItem(Base):
     __tablename__ = "watchlist_items"
 
@@ -295,6 +308,10 @@ class Portfolio(Base):
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String(120))
     base_currency: Mapped[str] = mapped_column(String(8), default="EUR")
+    # Optional target allocation by asset class, {"action": 0.6, "etf": 0.3,
+    # "tresorerie": 0.1} (fractions summing to 1): set by the user, used only
+    # to *measure* the drift in the portfolio check-up.
+    target_allocation: Mapped[dict | None] = mapped_column(JSONType, nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow, onupdate=utcnow)
 

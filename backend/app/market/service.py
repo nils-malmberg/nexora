@@ -36,7 +36,7 @@ from app.market.base import (
     SearchResult,
 )
 from app.market.ratelimit import TTLCache
-from app.models import FxRate, Instrument, OhlcBar, PositionLot, PricePoint, WatchlistItem
+from app.models import FxRate, Instrument, InstrumentFundamentals, OhlcBar, PositionLot, PricePoint, WatchlistItem
 from app.observability.logging import get_logger, log_event
 from app.observability.metrics import market_cache_hits_total, market_quote_age_seconds
 
@@ -46,6 +46,9 @@ _search_cache = TTLCache(ttl_seconds=600)
 _isin_misses = TTLCache(ttl_seconds=3600, max_entries=2048)
 _history_marks = TTLCache(ttl_seconds=settings.market_refresh_interval_seconds, max_entries=4096)
 _fx_marks = TTLCache(ttl_seconds=settings.market_refresh_interval_seconds, max_entries=1024)
+# A fundamentals miss (unsupported symbol, no key) is remembered for an hour
+# so a decision-aid page opened ten times costs one provider call.
+_fundamentals_marks = TTLCache(ttl_seconds=3600, max_entries=2048)
 
 # One lock per instrument / FX pair: concurrent requests for the same series
 # (a page loads the chart and the indicators at once) serialize on it, so the
@@ -69,6 +72,7 @@ def reset_caches() -> None:
     _isin_misses.clear()
     _history_marks.clear()
     _fx_marks.clear()
+    _fundamentals_marks.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -633,6 +637,74 @@ def get_fx_rate(db: Session, base: str, quote: str, on: datetime | None = None) 
 
 
 # ---------------------------------------------------------------------------
+# Fundamentals (decision aid): cache-first, one snapshot per instrument
+# ---------------------------------------------------------------------------
+
+FUNDAMENTALS_ASSET_CLASSES = ("action",)
+
+
+@dataclass
+class FundamentalsView:
+    row: InstrumentFundamentals | None
+    status: str  # fresh | cached | stale | unavailable | not_supported | not_configured
+    reason: str | None = None
+    provider: str | None = None
+
+
+def get_fundamentals(db: Session, instrument: Instrument, *, force: bool = False) -> FundamentalsView:
+    """Returns the cached snapshot, refreshing it at most once per
+    `fundamentals_freshness_hours` under the provider's token bucket and
+    breaker. Only shared equities (`action`) have fundamentals; a private or
+    non-equity instrument answers `not_supported` without any call."""
+    provider_name = settings.market_fundamentals_provider
+    row = db.get(InstrumentFundamentals, instrument.id)
+    now = datetime.now(UTC)
+    if instrument.user_id is not None or instrument.asset_class not in FUNDAMENTALS_ASSET_CLASSES:
+        return FundamentalsView(row, "cached" if row else "not_supported", "asset_class", provider_name)
+    if provider_name == "null":
+        return FundamentalsView(row, "cached" if row else "not_configured", "provider_disabled", provider_name)
+    freshness = timedelta(hours=settings.fundamentals_freshness_hours)
+    if row is not None and not force and (now - row.collected_at) < freshness:
+        market_cache_hits_total.labels(kind="fundamentals").inc()
+        return FundamentalsView(row, "fresh", None, provider_name)
+    if not force and _fundamentals_marks.get(instrument.id) is not None:
+        return FundamentalsView(row, "stale" if row else "unavailable", "recent_miss", provider_name)
+    if not registry.circuit_allows(db, provider_name):
+        return FundamentalsView(row, "stale" if row else "unavailable", "circuit_open", provider_name)
+
+    provider = registry.build_provider(provider_name)
+    symbol = instrument.provider_symbol if instrument.provider == provider_name else instrument.symbol
+    try:
+        result = provider.fundamentals(symbol or instrument.symbol)
+    except MarketNotSupported as exc:
+        _fundamentals_marks.set(instrument.id, True)
+        return FundamentalsView(row, "stale" if row else "not_supported", str(exc)[:120], provider_name)
+    except MarketMisconfigured:
+        return FundamentalsView(row, "stale" if row else "not_configured", "missing_credentials", provider_name)
+    except MarketDataError as exc:
+        reason = _handle_provider_error(db, provider_name, exc)
+        db.commit()
+        if reason not in ("rate_limited", "circuit_open"):
+            _fundamentals_marks.set(instrument.id, True)
+        return FundamentalsView(row, "stale" if row else "unavailable", reason, provider_name)
+
+    registry.record_success(db, provider_name)
+    if result is None:
+        _fundamentals_marks.set(instrument.id, True)
+        db.commit()
+        return FundamentalsView(row, "stale" if row else "unavailable", "no_data", provider_name)
+    if row is None:
+        row = InstrumentFundamentals(instrument_id=instrument.id)
+        db.add(row)
+    row.as_of = result.as_of
+    row.source = result.source
+    row.data = result.as_dict()
+    row.collected_at = now
+    db.commit()
+    return FundamentalsView(row, "fresh", None, provider_name)
+
+
+# ---------------------------------------------------------------------------
 # Worker: periodic refresh of everything users actually track
 # ---------------------------------------------------------------------------
 
@@ -686,6 +758,7 @@ __all__ = [
     "sync_history",
     "get_fx_rate",
     "ensure_fx_series",
+    "get_fundamentals",
     "refresh_tracked",
     "reset_caches",
 ]

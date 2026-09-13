@@ -23,6 +23,7 @@ class PortfolioOut(BaseModel):
     id: str
     name: str
     base_currency: str
+    target_allocation: dict[str, float] | None = None
     created_at: datetime
     updated_at: datetime
 

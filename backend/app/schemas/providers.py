@@ -71,9 +71,17 @@ class AutoNewsOut(BaseModel):
     detail: str
 
 
+class FundamentalsSourceOut(BaseModel):
+    provider: str
+    configured: bool
+    env_var: str | None
+    detail: str
+
+
 class ProvidersOverviewOut(BaseModel):
     market: list[MarketProviderPublicOut]
     news: list[ProviderStatusOut]
     auto_news: AutoNewsOut
+    fundamentals: FundamentalsSourceOut
     prediction_enabled: bool
     quote_freshness_minutes: int

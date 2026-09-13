@@ -10,7 +10,7 @@ in plain text so they render everywhere.
 
 from __future__ import annotations
 
-VERSION = "2026-09-13.3"
+VERSION = "2026-09-14.1"
 
 CATEGORIES = {
     "bases": "Bases de la valorisation",
@@ -20,6 +20,7 @@ CATEGORIES = {
     "prediction": "Prédiction et validation",
     "donnees": "Données et sources",
     "suivi": "Suivi, revenus et fiscalité",
+    "decision": "Aide à la décision",
 }
 
 
@@ -730,5 +731,143 @@ ARTICLES: dict[str, dict] = {
             ),
         ],
         ("capm-beta", "correlation-diversification"),
+    ),
+    # --------------------------------------------------------------- decision
+    "aide-a-la-decision": _a(
+        "Lire l'aide à la décision",
+        "decision",
+        "Ce que signifient « favorable », « défavorable », « neutre », comment les méthodes se contredisent, et ce "
+        "que l'outil ne dit pas.",
+        "Le bilan d'un instrument applique, en un clic, une quinzaine de méthodes reconnues (tendance, momentum, "
+        "surachat/survente, ratios de valorisation et de qualité, consensus des analystes, mesures de risque, "
+        "prédiction expérimentale) et donne pour chacune sa lecture « manuel » : favorable à un achat ou à la "
+        "conservation, défavorable (c'est-à-dire favorable à une vente ou à l'abstention), neutre, ou indisponible.",
+        "Chaque méthode est calculée sur les données déjà présentes (cours quotidiens en cache, fondamentaux "
+        "rafraîchis au plus une fois par jour) avec les seuils classiques de la littérature, indiqués dans chaque "
+        "explication. Les lectures sont ensuite comptées par horizon — court terme (analyse technique), long terme "
+        "(fondamentaux), risque — et globalement. Le compte n'est pas pondéré : dix méthodes ne valent pas dix voix "
+        "d'égale valeur, c'est pourquoi chaque ligne porte aussi un niveau de preuve (« forte » : effet documenté "
+        "par des décennies d'études, comme le momentum ou la diversification ; « faible » : usage répandu mais "
+        "pouvoir prédictif contesté, comme le RSI ou le MACD).",
+        "Aucune méthode n'est fiable seule et leur pouvoir prédictif, quand il existe, est faible : sur une année, "
+        "la meilleure d'entre elles a raison à peine plus souvent que le hasard. Les lectures décrivent le titre, "
+        "jamais votre situation (horizon, fiscalité, patrimoine, tolérance aux pertes). Un titre « favorable » sur "
+        "toute la ligne peut baisser demain sur une nouvelle imprévisible ; un titre « défavorable » peut être celui "
+        "que tout le monde a déjà vendu. L'outil informe ; il ne conseille pas et ne passe aucun ordre.",
+        [
+            (
+                "Comment s'en servir",
+                "1) Regardez d'abord la ligne « Risque » : volatilité et pire repli disent ce que vous devrez "
+                "supporter, quelle que soit la direction. 2) Comparez le court terme et le long terme : quand ils se "
+                "contredisent, l'outil le dit — c'est souvent le cas le plus intéressant (titre solide boudé par le "
+                "marché, ou titre fragile porté par l'élan). 3) Ouvrez chaque explication : le chiffre, le seuil et "
+                "la limite y sont. 4) Confrontez au bilan de votre portefeuille : ajouter un titre « favorable » à une "
+                "ligne qui pèse déjà 40 % n'est pas une bonne idée pour autant.",
+            ),
+            (
+                "Pourquoi les méthodes se contredisent",
+                "Elles ne mesurent pas la même chose. Le RSI lit un excès de court terme et invite à aller contre "
+                "lui ; le momentum lit une tendance et invite à la suivre ; le PER compare le prix aux bénéfices sans "
+                "rien dire du moment. Un titre en forte hausse est souvent à la fois « favorable » (tendance, "
+                "momentum) et « défavorable » (RSI en surachat, PER élevé). Ce désaccord est une information : il dit "
+                "que la réponse dépend de votre horizon.",
+            ),
+            (
+                "Ce qui manque toujours",
+                "Le contexte : secteur, concurrence, actualité, cycle économique, taux d'intérêt. Les fondamentaux se "
+                "comparent au sein d'un secteur (un PER de 25 est cher pour une banque, ordinaire pour un éditeur de "
+                "logiciels). Les données peuvent être différées, incomplètes ou absentes — une ligne "
+                "« indisponible » n'est jamais remplacée par une estimation.",
+            ),
+        ],
+        ("analyse-fondamentale", "indicateurs-techniques", "efficience-des-marches", "bilan-portefeuille"),
+    ),
+    "analyse-fondamentale": _a(
+        "Analyse fondamentale : PER, P/B, dividende, croissance, ROE, dette",
+        "decision",
+        "Les ratios qui relient le prix d'une action à ce que l'entreprise gagne, possède et doit.",
+        "L'analyse fondamentale juge une action par l'entreprise derrière : est-elle rentable, en croissance, "
+        "solide financièrement, et son prix est-il raisonnable au regard de tout cela ? Elle s'intéresse aux "
+        "années, pas aux semaines.",
+        "PER = prix de l'action / bénéfice par action : combien d'années de bénéfice actuel on paie (repères : "
+        "< 15 bon marché, 15–25 ordinaire, > 25 cher ; négatif = pertes). P/B = prix / actif net comptable par "
+        "action (< 1,5 « value », > 5 : la valeur est hors bilan). Rendement du dividende = dividende annuel / "
+        "prix. Croissance du BPA = variation du bénéfice par action sur un an. ROE = bénéfice / capitaux propres "
+        "(> 15 % élevé, < 5 % faible). Marge nette = bénéfice / chiffre d'affaires. Dette / capitaux propres "
+        "(< 0,5 prudent, > 2 lourd). Source : dernier bilan et derniers douze mois publiés, via le fournisseur "
+        "de données configuré.",
+        "Les seuils sont des ordres de grandeur toutes activités confondues : chaque secteur a ses normes (la "
+        "distribution vit avec 2 % de marge, les banques avec beaucoup de dette). Un ratio bas peut signaler une "
+        "affaire ou une entreprise en déclin (« value trap ») ; un ratio élevé peut être justifié par une "
+        "croissance réelle. Les chiffres comptables sont publiés avec retard et peuvent être retraités. Aucun "
+        "ratio ne dit quand le marché reconnaîtra une « bonne affaire » — parfois jamais.",
+        [
+            (
+                "Ce que dit la recherche",
+                "Sur de longues périodes et de larges paniers, les titres bon marché (PER, P/B faibles) ont en "
+                "moyenne mieux rendu que les titres chers (« prime value », Fama-French), avec de longues années "
+                "d'exception (2010–2020). La qualité (ROE élevé, dette faible, marges stables) est un autre facteur "
+                "documenté. Ces effets se constatent sur des portefeuilles diversifiés, pas titre par titre.",
+            ),
+            (
+                "Lire ensemble, pas séparément",
+                "Un PER bas + un ROE élevé + une dette faible + une croissance positive : rare et intéressant. Un PER "
+                "bas + une croissance négative + une dette lourde : le marché a probablement raison d'être méfiant. "
+                "Le rendement du dividende très élevé accompagne souvent un cours qui vient de chuter.",
+            ),
+        ],
+        ("aide-a-la-decision", "consensus-analystes", "efficience-des-marches"),
+    ),
+    "consensus-analystes": _a(
+        "Consensus des analystes",
+        "decision",
+        "Ce que valent les avis « acheter / conserver / vendre » des analystes financiers.",
+        "Le nombre d'analystes professionnels qui recommandent d'acheter, de conserver ou de vendre un titre, tel "
+        "que compilé par le fournisseur de données.",
+        "Part d'avis positifs = (achat fort + achat) / total. Lecture : ≥ 60 % d'avis positifs « favorable », "
+        "≥ 30 % d'avis à la vente « défavorable », sinon neutre.",
+        "Les analystes sont structurellement optimistes : les avis « vendre » sont rares (conflits d'intérêts, "
+        "accès au management). Leurs révisions suivent souvent le cours plus qu'elles ne l'anticipent. Un "
+        "consensus très positif est la norme et n'apporte guère d'information ; un consensus dégradé ou en baisse "
+        "en apporte davantage. Les objectifs de cours ne sont pas repris ici.",
+        [
+            (
+                "Comment l'utiliser",
+                "Comme un indicateur de l'humeur du marché, à lire avec les fondamentaux : un titre bon marché que "
+                "tous les analystes boudent mérite qu'on cherche pourquoi.",
+            ),
+        ],
+        ("analyse-fondamentale", "efficience-des-marches"),
+    ),
+    "bilan-portefeuille": _a(
+        "Bilan du portefeuille : concentration, diversification, allocation cible",
+        "decision",
+        "Les règles de structure qui comptent plus que le choix de chaque titre.",
+        "Le bilan examine la forme du portefeuille : poids de la plus grosse ligne, nombre de lignes, classe "
+        "d'actifs dominante, exposition aux devises, part de trésorerie, corrélation moyenne entre les lignes, "
+        "volatilité et pire repli — et, si vous avez fixé une allocation cible, l'écart à celle-ci.",
+        "Repères utilisés : une ligne > 25 % du total est une concentration ; moins de 5 lignes ne diluent pas le "
+        "risque propre à chaque entreprise ; une corrélation moyenne > 0,7 signifie que les lignes bougent "
+        "ensemble ; un écart > 10 points à la cible est le seuil habituel de rééquilibrage. L'allocation cible se "
+        "définit par classe d'actifs (actions, ETF, obligations, crypto, trésorerie…) en fractions sommant à 1.",
+        "Ce sont des règles de prudence issues de la théorie du portefeuille, pas des optimums : un portefeuille "
+        "d'un seul ETF mondial est « concentré » sur une ligne mais diversifié sur des milliers d'entreprises — "
+        "l'outil le compte comme une ligne. Les corrélations changent, et montent dans les crises. Le bilan ne "
+        "connaît pas vos autres avoirs (immobilier, épargne, retraite) ni vos objectifs.",
+        [
+            (
+                "Pourquoi diversifier est « gratuit »",
+                "Deux actifs qui ne baissent pas en même temps donnent, ensemble, un rendement moyen égal à la "
+                "moyenne de leurs rendements mais un risque inférieur à la moyenne de leurs risques. C'est le seul "
+                "cas en finance où l'on réduit le risque sans réduire l'espérance de gain (voir Markowitz).",
+            ),
+            (
+                "Rééquilibrer",
+                "Revenir périodiquement à l'allocation cible (en dirigeant les nouveaux apports vers ce qui manque, "
+                "ou en arbitrant) force à vendre ce qui a monté et acheter ce qui a baissé — une discipline "
+                "contre-intuitive qui stabilise le risque. Le bilan mesure l'écart ; il ne passe pas les ordres.",
+            ),
+        ],
+        ("allocation", "correlation-diversification", "markowitz", "aide-a-la-decision"),
     ),
 }

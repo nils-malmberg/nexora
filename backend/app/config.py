@@ -58,6 +58,11 @@ class Settings(BaseSettings):
     market_equity_provider: str = "yahoo"  # yahoo | finnhub | null
     market_crypto_provider: str = "coingecko"  # coingecko | null
     market_fx_provider: str = "frankfurter"  # frankfurter | null
+    # Company fundamentals (valuation ratios, analyst consensus) for the
+    # decision aid. Finnhub is the only live source (free key); "fixture" for
+    # tests/demo; "null" disables the section (it says so in the UI).
+    market_fundamentals_provider: str = "finnhub"  # finnhub | fixture | null
+    fundamentals_freshness_hours: int = 24
     # A live quote is refreshed at most this often (specs/README.md: "cible
     # indicative : 15 minutes"); the worker refreshes held/watched instruments
     # on the same cadence. Between refreshes, the cached quote is served with

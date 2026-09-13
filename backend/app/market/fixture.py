@@ -14,6 +14,7 @@ from pathlib import Path
 
 from app.market.base import (
     Bar,
+    Fundamentals,
     FxProvider,
     HealthStatus,
     HistoryResult,
@@ -58,6 +59,26 @@ class FixtureProvider(MarketDataProvider):
         self._path = fixture_path
         self._data: dict = json.loads(fixture_path.read_text(encoding="utf-8")) if fixture_path.exists() else {}
 
+    def fundamentals(self, provider_symbol: str) -> Fundamentals | None:
+        entry = self._data.get(provider_symbol)
+        if entry is None:
+            raise MarketNotFound(f"fixture: unknown symbol {provider_symbol}")
+        raw = entry.get("fundamentals")
+        if not raw:
+            raise MarketNotFound(f"fixture: no fundamentals for {provider_symbol}")
+        analyst_keys = ("analyst_buy", "analyst_hold", "analyst_sell", "analyst_period")
+        fields = {k: to_decimal(v) for k, v in raw.items() if k not in analyst_keys}
+        return Fundamentals(
+            as_of=datetime.now(UTC),
+            source=self.name,
+            license_note="Fixture locale, aucune donnée réelle.",
+            analyst_buy=raw.get("analyst_buy"),
+            analyst_hold=raw.get("analyst_hold"),
+            analyst_sell=raw.get("analyst_sell"),
+            analyst_period=raw.get("analyst_period"),
+            **fields,
+        )
+
     @property
     def capabilities(self) -> ProviderCapabilities:
         return ProviderCapabilities(
@@ -68,6 +89,7 @@ class FixtureProvider(MarketDataProvider):
             asset_classes=("action", "etf", "crypto", "indice", "devise"),
             attribution="Données synthétiques (fixture locale)",
             license_note="Fixture locale, aucune donnée réelle.",
+            extra={"fundamentals": True},
         )
 
     def search(self, query: str, limit: int = 10) -> list[SearchResult]:
