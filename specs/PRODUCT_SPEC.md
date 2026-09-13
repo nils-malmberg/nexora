@@ -8,6 +8,14 @@ Offrir une vue fiable, explicable et privée d’un patrimoine multi-actifs, san
 - **Investisseur long terme** : comparer historique, contributions, performance et risque.
 - **Administrateur** : gérer fournisseurs, rétention, santé et conformité.
 
+## Pivot (septembre 2026)
+Priorité à l'analyse de marché pour un particulier qui débute : pas de compte (session locale
+automatique), pas de gestion de portefeuille (désactivée, remplacée par une liste de suivi avec
+« je détiens ce titre »), aide à la décision formulée en **achat / vente / attendre** par horizon avec
+arguments, niveaux de gestion du risque et validation sur le passé, outils graphiques de site de
+courtage, prédiction en un clic. Ce qui suit décrit le périmètre initial ; les règles métier et
+la frontière (information, jamais conseil personnalisé ni exécution) restent valables.
+
 ## Périmètre V1
 - Portefeuilles multiples et devise de référence configurable.
 - Instruments : actions, ETF, crypto, obligations ; actifs privés saisis/importés manuellement avec valorisation datée et méthode explicite.

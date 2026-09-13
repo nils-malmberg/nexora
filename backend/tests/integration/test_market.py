@@ -311,3 +311,26 @@ def test_refresh_tracked_only_touches_held_or_watched(registered_user, db_sessio
     summary = market_service.refresh_tracked(db_session)
     assert summary["instruments"] == 1  # USDEMO is neither held nor watched: never refreshed
     assert summary["history_bars"] == 4
+
+
+def test_watchlist_item_can_be_marked_as_held(registered_user):
+    client, csrf, _ = registered_user
+    instrument = _add_demo(client, csrf)["instrument"]
+    item = client.post(
+        "/api/v1/market/watchlist", json={"instrument_id": instrument["id"]}, headers=_headers(csrf)
+    ).json()
+    assert item["held"] is False and item["entry_price"] is None
+    updated = client.patch(
+        f"/api/v1/market/watchlist/{item['id']}",
+        json={"held": True, "entry_price": "24.5", "quantity": "10", "note": "PEA"},
+        headers=_headers(csrf),
+    )
+    assert updated.status_code == 200, updated.text
+    body = updated.json()
+    assert body["held"] is True and body["entry_price"] == "24.500000" and body["quantity"] == "10.00000000"
+    assert client.get("/api/v1/market/watchlist").json()[0]["note"] == "PEA"
+    cleared = client.patch(f"/api/v1/market/watchlist/{item['id']}", json={"clear_entry": True}, headers=_headers(csrf))
+    assert cleared.json()["entry_price"] is None and cleared.json()["held"] is True
+    bad = client.patch(f"/api/v1/market/watchlist/{item['id']}", json={"entry_price": "-1"}, headers=_headers(csrf))
+    assert bad.status_code == 422
+    assert client.patch("/api/v1/market/watchlist/nope", json={"held": True}, headers=_headers(csrf)).status_code == 404

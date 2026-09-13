@@ -141,12 +141,20 @@ export const HISTORY_RANGE_LABELS: Record<HistoryRange, string> = {
 
 export interface WatchlistItem {
   id: string;
+  held: boolean;
+  entry_price: string | null;
+  entry_date: string | null;
+  quantity: string | null;
+  note: string | null;
   instrument: Instrument;
   quote: Quote | null;
   created_at: string;
 }
 
 export interface OverviewEntry {
+  held: boolean;
+  entry_price: string | null;
+  watchlist_item_id: string | null;
   instrument: Instrument;
   quote: Quote | null;
   held_quantity: string | null;
@@ -1159,6 +1167,13 @@ export interface DecisionAid {
   tally: Tally;
   horizons: HorizonSummary[];
   overall: string;
+  verdicts: Verdict[];
+  orientation: Orientation;
+  orientation_label: string;
+  orientation_confidence: "faible" | "moyenne" | "forte";
+  orientation_text: string;
+  levels: Levels | null;
+  holder: HolderView | null;
   fundamentals: FundamentalsStatus;
   prediction_available: boolean;
   news_last_7_days: number;
@@ -1169,6 +1184,9 @@ export interface DecisionOverviewEntry {
   instrument: Instrument;
   held: boolean;
   watched: boolean;
+  orientation: Orientation;
+  orientation_label: string;
+  orientation_confidence: "faible" | "moyenne" | "forte";
   observations: number;
   tally: Tally;
   trend: Reading;
@@ -1210,4 +1228,160 @@ export interface FundamentalsSource {
   configured: boolean;
   env_var: string | null;
   detail: string;
+}
+
+// ---------------------------------------------------------------------------
+// Product config, chart tools, buy/sell verdicts, past validation
+// ---------------------------------------------------------------------------
+
+export interface AppConfig {
+  single_user: boolean;
+  portfolios_enabled: boolean;
+  prediction_enabled: boolean;
+  environment: string;
+}
+
+export interface IchimokuData {
+  tenkan: (number | null)[];
+  kijun: (number | null)[];
+  senkou_a: (number | null)[];
+  senkou_b: (number | null)[];
+  chikou: (number | null)[];
+  future_dates: string[];
+  future_senkou_a: (number | null)[];
+  future_senkou_b: (number | null)[];
+  reading: string;
+}
+
+export interface SarData {
+  values: (number | null)[];
+  trend: number[];
+  reading: string;
+}
+
+export interface PivotSet {
+  period: string;
+  based_on: string;
+  pivot: number;
+  r1: number;
+  r2: number;
+  r3: number;
+  s1: number;
+  s2: number;
+  s3: number;
+}
+
+export interface FibonacciData {
+  swing_high: number;
+  swing_high_date: string;
+  swing_low: number;
+  swing_low_date: string;
+  direction: "hausse" | "baisse";
+  levels: [number, number][];
+  nearest_ratio: number | null;
+  reading: string;
+}
+
+export interface CandlePattern {
+  index: number;
+  as_of: string;
+  name: string;
+  direction: "haussier" | "baissier" | "indecision";
+  explanation: string;
+}
+
+export const PATTERN_LABELS: Record<string, string> = {
+  doji: "Doji",
+  marteau: "Marteau",
+  etoile_filante: "Étoile filante",
+  avalement_haussier: "Avalement haussier",
+  avalement_baissier: "Avalement baissier",
+  etoile_du_matin: "Étoile du matin",
+  etoile_du_soir: "Étoile du soir",
+};
+
+export interface ChartTools {
+  instrument_id: string;
+  dates: string[];
+  has_ohlc: boolean;
+  ichimoku: IchimokuData | null;
+  sar: SarData | null;
+  pivots: PivotSet[];
+  fibonacci: FibonacciData | null;
+  supports: number[];
+  resistances: number[];
+  patterns: CandlePattern[];
+  method: string;
+}
+
+export type Orientation = "achat" | "vente" | "attendre";
+export const ORIENTATION_LABELS: Record<Orientation, string> = { achat: "Plutôt achat", vente: "Plutôt vente", attendre: "Attendre / observer" };
+
+export interface Verdict {
+  horizon: "court_terme" | "long_terme";
+  label: string;
+  orientation: Orientation;
+  orientation_label: string;
+  confidence: "faible" | "moyenne" | "forte";
+  text: string;
+  buy_case: string[];
+  sell_case: string[];
+  available: number;
+}
+
+export interface Levels {
+  price: number;
+  atr: number | null;
+  stop_loss: number | null;
+  stop_loss_pct: number | null;
+  target: number | null;
+  target_pct: number | null;
+  risk_reward: number | null;
+  trailing_stop: number | null;
+  supports: number[];
+  resistances: number[];
+  high_52w: number | null;
+  low_52w: number | null;
+  position_size: number | null;
+  capital: number;
+  risk_pct: number;
+  risk_amount: number;
+  method: string;
+}
+
+export interface HolderView {
+  held: boolean;
+  entry_price: number | null;
+  pnl_pct: number | null;
+  orientation: Orientation;
+  label: string;
+  text: string;
+  below_stop: boolean | null;
+}
+
+export interface OrientationStats {
+  orientation: Orientation;
+  label: string;
+  count: number;
+  mean_return: number | null;
+  median_return: number | null;
+  hit_rate: number | null;
+  worst: number | null;
+  best: number | null;
+}
+
+export interface PastValidation {
+  instrument_id: string;
+  symbol: string;
+  horizon_days: number;
+  evaluations: number;
+  start: string | null;
+  end: string | null;
+  by_orientation: OrientationStats[];
+  baseline_mean_return: number | null;
+  baseline_hit_rate: number | null;
+  timeline: { as_of: string; orientation: Orientation; close: number }[];
+  text: string;
+  method: string;
+  disclaimer: string;
 }

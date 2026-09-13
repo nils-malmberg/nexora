@@ -10,7 +10,7 @@ in plain text so they render everywhere.
 
 from __future__ import annotations
 
-VERSION = "2026-09-14.1"
+VERSION = "2026-09-14.2"
 
 CATEGORIES = {
     "bases": "Bases de la valorisation",
@@ -869,5 +869,133 @@ ARTICLES: dict[str, dict] = {
             ),
         ],
         ("allocation", "correlation-diversification", "markowitz", "aide-a-la-decision"),
+    ),
+    "acheter-ou-vendre": _a(
+        "Acheter ou vendre ? Lire l'orientation",
+        "decision",
+        "Comment l'application passe des lectures individuelles à « plutôt achat », « plutôt vente » ou "
+        "« attendre », et ce que cela veut dire pour vous.",
+        "L'orientation résume, par horizon puis globalement, de quel côté penchent les méthodes appliquées au titre : "
+        "« plutôt achat » quand une nette majorité lit une situation favorable à un achat ou à la conservation, "
+        "« plutôt vente » quand elle lit une situation favorable à une vente ou à l'abstention, « attendre » quand il "
+        "n'y a pas de majorité ou que les horizons se contredisent.",
+        "Règle de majorité avec marge : il faut au moins deux lectures d'écart et un rapport d'au moins 1,5 entre les "
+        "deux camps ; la confiance dépend de la part du camp majoritaire et du nombre de lectures disponibles. Le "
+        "court terme (analyse technique) et le long terme (fondamentaux) sont d'abord jugés séparément, puis "
+        "combinés : s'ils concordent, l'orientation est celle-là ; s'ils se contredisent, l'application dit "
+        "« attendre » et explique le désaccord au lieu de le masquer. Si vous avez indiqué détenir le titre, la "
+        "même orientation est traduite en « conserver / alléger / vendre » avec votre résultat depuis l'entrée.",
+        "Une majorité de méthodes n'est pas une majorité de preuves : les lectures techniques sont nombreuses et "
+        "corrélées entre elles (elles regardent toutes le même cours). L'orientation change avec le cours, parfois "
+        "d'un jour à l'autre. Elle ne connaît ni votre horizon, ni votre fiscalité, ni le reste de votre patrimoine. "
+        "Le test « sur le passé » montre le plus souvent que la méthode fait à peine mieux — ou pas mieux — que "
+        "d'acheter n'importe quand : c'est l'état de l'art, pas un défaut de l'outil.",
+        [
+            (
+                "Les niveaux : stop, objectif, taille",
+                "Le stop de protection (cours − 2 × ATR) est le niveau où la thèse d'achat est invalidée par le "
+                "bruit normal du titre ; l'objectif (cours + 3 × ATR) donne un rapport gain/risque de 1,5 ; la taille "
+                "de position découle du montant que vous acceptez de perdre si le stop est touché (1 % du capital est "
+                "la règle usuelle des traders). Ce sont des repères de méthode : à adapter, jamais à suivre "
+                "aveuglément.",
+            ),
+            (
+                "Court terme contre long terme",
+                "Un titre en tendance baissière avec de bons fondamentaux : le trader attend le retournement, "
+                "l'investisseur long terme peut acheter progressivement. Un titre en tendance haussière avec des "
+                "fondamentaux chers : le trader suit l'élan avec un stop serré, l'investisseur attend un meilleur "
+                "prix. "
+                "L'outil vous donne les deux lectures ; le choix de l'horizon est le vôtre.",
+            ),
+            (
+                "Ce que « vente » veut dire",
+                "Pour quelqu'un qui n'a pas le titre : ne pas acheter maintenant. Pour quelqu'un qui l'a : alléger ou "
+                "vendre selon la lecture manuel — et le prix auquel vous l'avez acheté n'entre pas en ligne de compte, "
+                "même si c'est le réflexe le plus fort (aversion aux pertes).",
+            ),
+        ],
+        ("aide-a-la-decision", "gestion-du-risque", "efficience-des-marches"),
+    ),
+    "gestion-du-risque": _a(
+        "Gestion du risque : stop, objectif, taille de position",
+        "decision",
+        "Les règles qui font qu'une mauvaise décision ne coûte qu'un peu — la seule chose que les traders qui "
+        "durent ont en commun.",
+        "Trois nombres à fixer avant d'acheter : le niveau où l'on admet s'être trompé (stop), le niveau où l'on "
+        "prend son gain (objectif), et la quantité achetée (taille) déduite du montant qu'on accepte de perdre.",
+        "ATR(14) = amplitude moyenne quotidienne du titre sur 14 séances. Stop = cours − 2 × ATR : au-delà de deux "
+        "amplitudes normales, le mouvement n'est plus du bruit. Objectif = cours + 3 × ATR : rapport gain/risque de "
+        "1,5. Stop suiveur = plus haut des 20 dernières séances − 2 × ATR, remonté au fil de la hausse pour protéger "
+        "les gains. Taille = (capital × % risqué) / (cours − stop) : avec 10 000 € et 1 % de risque, on risque 100 € "
+        "par position, donc on achète 100 € / (cours − stop) titres.",
+        "Un stop peut être franchi d'un coup (gap d'ouverture) : le prix de sortie réel est alors pire. Un stop trop "
+        "serré est touché par le bruit ; trop large, il coûte cher. Le rapport gain/risque de 1,5 n'a rien de magique "
+        "— il signifie qu'il faut avoir raison plus de 40 % du temps pour être rentable. Aucun de ces niveaux n'est "
+        "transmis à un courtier : l'application ne passe aucun ordre.",
+        [
+            (
+                "Pourquoi la taille compte plus que le point d'entrée",
+                "Deux traders avec la même stratégie : l'un risque 1 % par position, l'autre 10 %. Après dix erreurs "
+                "consécutives (cela arrive), le premier a perdu 10 %, le second 65 %. Le second ne se relèvera pas — "
+                "pas parce que ses analyses étaient pires, mais parce que ses tailles l'étaient.",
+            ),
+        ],
+        ("acheter-ou-vendre", "volatilite-drawdown"),
+    ),
+    "outils-graphiques": _a(
+        "Outils graphiques : Ichimoku, SAR, pivots, Fibonacci, supports et résistances",
+        "technique",
+        "Ce que tracent les outils de l'onglet Graphique, comment les lire, et jusqu'où leur faire confiance.",
+        "Des constructions géométriques sur le cours : nuage Ichimoku (tendance et zones de support/résistance "
+        "projetées), SAR parabolique (stop suiveur d'une tendance), points pivots (niveaux intrajournaliers déduits "
+        "de la veille), retracements de Fibonacci (niveaux de repli d'un mouvement), supports et résistances "
+        "(niveaux où le cours s'est retourné), droites de tendance (tracées par vous).",
+        "Ichimoku : Tenkan = milieu des 9 dernières séances, Kijun = milieu des 26, Senkou A = milieu de Tenkan et "
+        "Kijun projeté 26 séances en avant, Senkou B = milieu des 52 séances projeté, Chikou = clôture reportée 26 "
+        "séances en arrière ; cours au-dessus du nuage = haussier, dessous = baissier, dedans = indécis. SAR : point "
+        "qui accélère vers le cours tant que la tendance dure et bascule de l'autre côté au retournement. Pivots : "
+        "P = (H + B + C) / 3 de la période précédente, S1 = 2P − H, R1 = 2P − B, etc. Fibonacci : niveaux à 23,6 / "
+        "38,2 / 50 / 61,8 / 78,6 % du mouvement entre le plus bas et le plus haut de la fenêtre. Supports et "
+        "résistances : extrêmes locaux des 12 derniers mois regroupés quand ils sont à moins de 1,5 % l'un de l'autre.",
+        "Ces outils décrivent la géométrie du passé ; leur pouvoir prédictif propre n'est pas démontré. Ils "
+        "« fonctionnent » en partie parce que beaucoup d'intervenants regardent les mêmes niveaux (prophétie "
+        "autoréalisatrice), ce qui suffit pour en faire des repères de gestion (où placer un stop, où attendre une "
+        "réaction) mais pas des prévisions. Changer la fenêtre change les niveaux de Fibonacci et les extrêmes.",
+        [
+            (
+                "Comment s'en servir sans se tromper",
+                "Un outil = une question. Ichimoku et SAR : y a-t-il une tendance et où est le stop qui la respecte ? "
+                "Pivots et supports/résistances : où le cours a-t-il des chances de réagir aujourd'hui ? Fibonacci : "
+                "jusqu'où un repli reste « normal » dans une tendance ? Droites de tendance : le cours respecte-t-il "
+                "encore le canal ? Aucun ne dit acheter ou vendre.",
+            ),
+        ],
+        ("indicateurs-techniques", "figures-de-chandeliers", "chandeliers"),
+    ),
+    "figures-de-chandeliers": _a(
+        "Figures de chandeliers",
+        "technique",
+        "Doji, marteau, étoile filante, avalements, étoiles du matin et du soir : ce que ces formes racontent "
+        "d'une séance.",
+        "Une figure de chandelier est une forme (une à trois bougies) qui résume le rapport de force entre acheteurs "
+        "et vendeurs sur la séance : indécision, rejet d'un niveau, prise de contrôle par un camp.",
+        "Doji : corps ≤ 10 % de l'amplitude. Marteau : petit corps en haut, mèche basse ≥ 2 corps, après une baisse ; "
+        "étoile filante : symétrique après une hausse. Avalement : un corps qui englobe entièrement le corps de la "
+        "veille, de couleur opposée. Étoile du matin / du soir : trois bougies — mouvement fort, hésitation, mouvement "
+        "fort inverse. Les figures sont détectées sur les 60 dernières séances et marquées sur le graphique (▲ "
+        "haussière, ▼ baissière, ◆ indécision).",
+        "Les études statistiques sur ces figures trouvent des taux de réussite proches de 50 % une fois les frais "
+        "comptés : une figure n'est jamais un signal seul. Elle prend du sens à un niveau clé (support, résistance, "
+        "bande de Bollinger, pivot) et avec une confirmation le lendemain. Sur des sources sans ouverture/plus haut/"
+        "plus bas (crypto gratuite), aucune figure n'est calculée plutôt que reconstituée.",
+        [
+            (
+                "Lecture",
+                "Un marteau sur un support après trois semaines de baisse : les vendeurs ont essayé, les acheteurs "
+                "ont repris la main — regarder si la séance suivante confirme. Un doji au sommet d'une hausse : "
+                "l'élan s'essouffle. Une figure au milieu de nulle part : rien.",
+            ),
+        ],
+        ("outils-graphiques", "chandeliers", "indicateurs-techniques"),
     ),
 }

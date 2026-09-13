@@ -259,11 +259,21 @@ class InstrumentFundamentals(Base):
 
 
 class WatchlistItem(Base):
+    """Followed instrument. Since the pivot away from portfolio bookkeeping,
+    this is also where a user says "I hold this" with an optional entry
+    price and quantity — the minimum the decision aid needs to talk about
+    selling versus holding, without any transaction log."""
+
     __tablename__ = "watchlist_items"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     instrument_id: Mapped[str] = mapped_column(ForeignKey("instruments.id", ondelete="CASCADE"))
+    held: Mapped[bool] = mapped_column(default=False)
+    entry_price: Mapped[float | None] = mapped_column(Numeric(20, 6), nullable=True)
+    entry_date: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    quantity: Mapped[float | None] = mapped_column(Numeric(24, 8), nullable=True)
+    note: Mapped[str | None] = mapped_column(String(200), nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
 
     instrument: Mapped[Instrument] = relationship()

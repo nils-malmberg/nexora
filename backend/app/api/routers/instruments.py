@@ -12,12 +12,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db, get_owned_instrument, get_visible_instrument, require_csrf
+from app.domain import chart_tools as ct
 from app.domain.analytics import compute_indicators
 from app.domain.positions import record_private_valuation
 from app.domain.quant import compute_extended_indicators
 from app.market import service as market_service
 from app.models import Instrument, OhlcBar, Portfolio, PositionLot, PricePoint, PrivateValuation, User, WatchlistItem
 from app.schemas.analytics import IndicatorsOut
+from app.schemas.chart_tools import ChartToolsOut, FibonacciOut, IchimokuOut, PatternOut, PivotSetOut, SarOut
 from app.schemas.instruments import (
     InstrumentCreate,
     InstrumentOut,
@@ -226,6 +228,55 @@ def get_indicators(
         stochastic_window=stochastic,
         obv=extended.obv,
         has_ohlc=bars is not None and bool(bars) and all(b.high is not None for b in bars),
+    )
+
+
+@router.get("/{instrument_id}/chart-tools", response_model=ChartToolsOut)
+def get_chart_tools(
+    instrument_id: str,
+    days: int = Query(default=366, ge=30, le=3660),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ChartToolsOut:
+    """Ichimoku, parabolic SAR, pivot points, Fibonacci retracements,
+    support/resistance levels and candlestick patterns over the window,
+    each with its plain-French reading. Close-only sources (crypto) get the
+    tools that need no OHLC and `has_ohlc=false` for the others."""
+    instrument = get_visible_instrument(instrument_id, db, user)
+    now = datetime.now(UTC)
+    start = now - timedelta(days=days)
+    if instrument.user_id is None and instrument.provider not in (None, "manual", "null"):
+        market_service.get_history(db, instrument, start, now)
+    bars = db.scalars(
+        select(OhlcBar).where(OhlcBar.instrument_id == instrument.id, OhlcBar.as_of >= start).order_by(OhlcBar.as_of)
+    ).all()
+    dates = [b.as_of for b in bars]
+    closes = [float(b.close) for b in bars]
+    has_ohlc = bool(bars) and all(b.open is not None and b.high is not None and b.low is not None for b in bars)
+    tools = ct.chart_tools(
+        dates,
+        [float(b.open) for b in bars] if has_ohlc else None,
+        [float(b.high) for b in bars] if has_ohlc else None,
+        [float(b.low) for b in bars] if has_ohlc else None,
+        closes,
+    )
+    return ChartToolsOut(
+        instrument_id=instrument.id,
+        dates=dates,
+        has_ohlc=tools.has_ohlc,
+        ichimoku=IchimokuOut(**tools.ichimoku.__dict__) if tools.ichimoku else None,
+        sar=SarOut(**tools.sar.__dict__) if tools.sar else None,
+        pivots=[PivotSetOut(**p.__dict__) for p in tools.pivots],
+        fibonacci=FibonacciOut(**tools.fibonacci.__dict__) if tools.fibonacci else None,
+        supports=tools.supports,
+        resistances=tools.resistances,
+        patterns=[PatternOut(**p.__dict__) for p in tools.patterns],
+        method=(
+            "Ichimoku (9/26/52, nuage projeté de 26 séances) ; SAR parabolique (pas 0,02, max 0,2) ; points pivots "
+            "classiques jour/semaine/mois ; Fibonacci sur le plus haut et le plus bas de la fenêtre ; supports et "
+            "résistances = extrêmes locaux des 12 derniers mois regroupés à ±1,5 % ; figures détectées sur les 60 "
+            "dernières bougies"
+        ),
     )
 
 

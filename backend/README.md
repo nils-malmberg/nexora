@@ -16,7 +16,7 @@ cd backend
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 alembic upgrade head          # SQLite local par défaut (./nexora.db), aucune base externe requise
-pytest tests -q               # 366 tests, tous hors ligne (fournisseurs "fixture", respx pour le HTTP)
+pytest tests -q               # 383 tests, tous hors ligne (fournisseurs "fixture", respx pour le HTTP)
 uvicorn app.api.main:app --reload --port 8000
 python -m app.worker.scheduler   # optionnel : rafraîchissement périodique marché + actualités
 ```
@@ -50,6 +50,29 @@ app/worker/         scheduler APScheduler (ingestion actualités, rafraîchissem
                     évaluation des alertes sur les données stockées)
 alembic/            une seule histoire de migrations (schéma unifié)
 ```
+
+## Mode produit
+
+`NEXORA_SINGLE_USER=true` (défaut) : `POST /api/v1/auth/local` ouvre une session pour un compte
+local intégré (administrateur, mot de passe aléatoire non utilisable) ; le SPA l'appelle tout seul
+quand `GET /api/v1/me` répond 401. Tout le reste (cookie de session, CSRF, limitation de débit) est
+inchangé — c'est le même mécanisme, sans formulaire. À réserver à une machine personnelle ou un
+réseau de confiance ; `false` rétablit inscription/connexion. `NEXORA_PORTFOLIOS_ENABLED=false`
+(défaut) : un middleware répond 404 sur `/api/v1/portfolios*` et `/api/v1/imports*` ; le code et
+ses tests restent (la suite force `true`). `GET /api/v1/config` expose ces interrupteurs au SPA.
+
+## Aide à la décision « acheter ou vendre »
+
+`decision.verdicts` : par horizon, orientation `achat` / `vente` / `attendre` par règle de majorité
+avec marge (≥ 2 lectures d'écart et rapport ≥ 1,5), confiance, arguments pour et contre ;
+`overall_orientation` combine les horizons et explique un désaccord au lieu de le masquer.
+`compute_levels` : ATR(14), stop = cours − 2 ATR, objectif = cours + 3 ATR, stop suiveur, supports et
+résistances (extrêmes locaux regroupés à ±1,5 %), taille de position = (capital × % risqué) /
+(cours − stop). `holder_view` pour un titre marqué « détenu » sur la watchlist. `past_validation` :
+lectures techniques recalculées date par date avec les seules données antérieures, rendement
+réalisé sur l'horizon par orientation contre « acheter n'importe quand » (mémoïsé une heure).
+`app/domain/chart_tools.py` : Ichimoku, SAR parabolique, pivots, Fibonacci, figures de chandeliers.
+`POST /prediction/auto/{instrument_id}` : expérience par défaut réutilisée si entraînée le jour même.
 
 ## Sécurité (specs/SECURITY.md)
 

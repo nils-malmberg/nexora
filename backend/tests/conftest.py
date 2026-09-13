@@ -19,6 +19,8 @@ os.environ.setdefault("NEXORA_MARKET_CRYPTO_PROVIDER", "null")
 os.environ.setdefault("NEXORA_MARKET_FX_PROVIDER", "fixture")
 os.environ.setdefault("NEXORA_MARKET_FUNDAMENTALS_PROVIDER", "fixture")
 os.environ.setdefault("NEXORA_PREDICTION_ENABLED", "true")
+os.environ.setdefault("NEXORA_PORTFOLIOS_ENABLED", "true")  # the bookkeeping tests still run
+os.environ.setdefault("NEXORA_SINGLE_USER", "false")  # tests exercise the account path explicitly
 os.environ.setdefault("NEXORA_PREDICTION_MIN_OBSERVATIONS", "120")
 
 from datetime import UTC, datetime, timedelta  # noqa: E402

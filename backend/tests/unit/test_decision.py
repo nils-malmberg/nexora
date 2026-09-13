@@ -102,8 +102,8 @@ def test_fundamental_readings_cover_quality_and_consensus():
 
 
 def test_prediction_signal_requires_out_of_sample_edge():
-    metrics_good = {"meta": {"direction_accuracy": 0.6, "mae": 0.01}, "naive": {"mae": 0.02}}
-    metrics_bad = {"meta": {"direction_accuracy": 0.5, "mae": 0.03}, "naive": {"mae": 0.02}}
+    metrics_good = {"models": {"meta": {"direction_accuracy": 0.6, "mae": 0.01}, "naive_last": {"mae": 0.02}}}
+    metrics_bad = {"models": {"meta": {"direction_accuracy": 0.5, "mae": 0.03}, "naive_last": {"mae": 0.02}}}
     up = decision.prediction_signal({"expected_log_return": 0.02}, metrics_good, 5)
     assert up.reading == "favorable" and "5 j" in up.label and up.value == "2.0 %"
     down = decision.prediction_signal({"expected_log_return": -0.02}, metrics_good, 5)
@@ -175,3 +175,49 @@ def test_portfolio_checkup_well_diversified_and_empty():
     assert (
         "Aucune position valorisée" in empty.overall and _keyed(empty.signals)["nombre_lignes"].reading == "defavorable"
     )
+
+
+def test_orientation_rule_needs_margin_and_ratio():
+    T = decision.Tally
+    assert decision.orientation_from_tally(T(favorable=5, defavorable=1, neutre=1)) == ("achat", "forte")
+    assert decision.orientation_from_tally(T(favorable=1, defavorable=4, neutre=2)) == ("vente", "moyenne")
+    assert decision.orientation_from_tally(T(favorable=3, defavorable=2, neutre=0))[0] == "attendre"
+    assert decision.orientation_from_tally(T(favorable=2, defavorable=0, neutre=0)) == ("achat", "faible")
+    assert decision.orientation_from_tally(T()) == ("attendre", "faible")
+
+
+def test_overall_orientation_explains_disagreement():
+    up = [decision.Signal(f"a{i}", "tendance", "court_terme", "A", "favorable", "") for i in range(4)]
+    cheap = [decision.Signal(f"b{i}", "valorisation", "long_terme", "B", "defavorable", "") for i in range(4)]
+    o, conf, text = decision.overall_orientation(decision.verdicts(up + cheap))
+    assert o == "attendre" and "Désaccord" in text
+    o, conf, text = decision.overall_orientation(decision.verdicts(up))
+    assert o == "achat" and "Seul le court terme" in text
+    vs = decision.verdicts(
+        up + [decision.Signal(f"c{i}", "qualite", "long_terme", "C", "favorable", "") for i in range(3)]
+    )
+    assert decision.overall_orientation(vs)[0] == "achat" and "concordent" in decision.overall_orientation(vs)[2]
+    court = next(v for v in vs if v.horizon == "court_terme")
+    assert len(court.buy_case) == 4 and court.sell_case == []
+
+
+def test_levels_and_support_resistance():
+    closes = np.array([100 + 10 * np.sin(i / 8) for i in range(300)])
+    highs, lows = closes * 1.01, closes * 0.99
+    lv = decision.compute_levels(closes, highs, lows, capital=20_000, risk_pct=0.5)
+    assert lv.atr > 0 and lv.stop_loss < lv.price < lv.target
+    assert lv.risk_reward == pytest.approx(1.5)
+    assert lv.position_size == int(100 // (lv.price - lv.stop_loss))
+    assert all(s < lv.price for s in lv.supports) and all(r > lv.price for r in lv.resistances)
+    assert lv.high_52w >= lv.price >= lv.low_52w
+    assert decision.compute_levels([]) is None
+    supports, resistances = decision.support_resistance(np.array([1.0, 2.0]))
+    assert supports == [] and resistances == []
+
+
+def test_holder_view_mentions_entry_and_stop():
+    lv = decision.compute_levels(np.linspace(100, 80, 60), np.linspace(101, 81, 60), np.linspace(99, 79, 60))
+    hv = decision.holder_view("vente", lv, 120.0)
+    assert hv.pnl_pct == pytest.approx(80 / 120 - 1) and "ne se « rattrape » pas" in hv.text
+    assert hv.below_stop is True and "stop suiveur" in hv.text
+    assert decision.holder_view("achat", None, None).pnl_pct is None

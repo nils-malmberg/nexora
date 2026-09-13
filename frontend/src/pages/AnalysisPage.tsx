@@ -4,6 +4,7 @@ import { Heatmap } from "../charts/Heatmap";
 import { ScatterChart, type ScatterPoint } from "../charts/ScatterChart";
 import { EducationNote } from "../components/EducationNote";
 import { QuantPanel } from "../components/QuantPanel";
+import { appConfig } from "../configStore";
 import { formatNumber, formatPct } from "../format";
 import type { CorrelationResult, FrontierResult, Instrument, Portfolio } from "../types";
 
@@ -14,13 +15,14 @@ import type { CorrelationResult, FrontierResult, Instrument, Portfolio } from ".
 export function AnalysisPage({ initialPortfolioId, initialInstrumentId }: { initialPortfolioId?: string; initialInstrumentId?: string }) {
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [instruments, setInstruments] = useState<Instrument[]>([]);
-  const [subjectKind, setSubjectKind] = useState<"portfolio" | "instrument">(initialInstrumentId ? "instrument" : "portfolio");
+  const portfoliosEnabled = appConfig().portfolios_enabled;
+  const [subjectKind, setSubjectKind] = useState<"portfolio" | "instrument">(initialInstrumentId || !portfoliosEnabled ? "instrument" : "portfolio");
   const [portfolioId, setPortfolioId] = useState(initialPortfolioId ?? "");
   const [instrumentId, setInstrumentId] = useState(initialInstrumentId ?? "");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([listPortfolios(), listInstruments()])
+    Promise.all([portfoliosEnabled ? listPortfolios() : Promise.resolve([] as Portfolio[]), listInstruments()])
       .then(([p, i]) => {
         setPortfolios(p);
         setInstruments(i);
@@ -42,12 +44,16 @@ export function AnalysisPage({ initialPortfolioId, initialInstrumentId }: { init
       </p>
       {error && <p className="error-state">{error}</p>}
       <div className="inline-form">
-        <label className="inline-check">
-          <input type="radio" checked={subjectKind === "portfolio"} onChange={() => setSubjectKind("portfolio")} /> Portefeuille
-        </label>
-        <label className="inline-check">
-          <input type="radio" checked={subjectKind === "instrument"} onChange={() => setSubjectKind("instrument")} /> Instrument
-        </label>
+        {portfoliosEnabled && (
+          <>
+            <label className="inline-check">
+              <input type="radio" checked={subjectKind === "portfolio"} onChange={() => setSubjectKind("portfolio")} /> Portefeuille
+            </label>
+            <label className="inline-check">
+              <input type="radio" checked={subjectKind === "instrument"} onChange={() => setSubjectKind("instrument")} /> Instrument
+            </label>
+          </>
+        )}
         {subjectKind === "portfolio" ? (
           <select value={portfolioId} onChange={(e) => setPortfolioId(e.target.value)} aria-label="Portefeuille">
             {portfolios.map((p) => (

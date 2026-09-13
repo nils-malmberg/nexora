@@ -27,6 +27,7 @@ from app.config import settings
 from app.domain import decision, quant
 from app.domain.positions import compute_positions, compute_valuation
 from app.market import service as market_service
+from app.market.ratelimit import TTLCache
 from app.models import (
     AuditEvent,
     Instrument,
@@ -47,11 +48,17 @@ from app.schemas.decision import (
     DecisionOverviewEntry,
     DecisionOverviewOut,
     FundamentalsStatusOut,
+    HolderViewOut,
     HorizonOut,
+    LevelsOut,
+    OrientationStatsOut,
+    PastValidationOut,
     PortfolioCheckupOut,
     SignalOut,
     TallyOut,
     TargetAllocationUpdate,
+    TimelinePointOut,
+    VerdictOut,
 )
 from app.schemas.instruments import InstrumentOut
 from app.schemas.portfolios import PortfolioOut
@@ -61,6 +68,34 @@ router = APIRouter(prefix="/api/v1", tags=["decision-aid"])
 # 12-month momentum needs 273 closes; 450 calendar days leaves a margin for
 # holidays and a partially filled cache.
 SERIES_DAYS = 450
+# Past validation is a few seconds of numpy per instrument: memoised per
+# (instrument, horizon, last bar) so re-opening the tab is free.
+_past_cache = TTLCache(ttl_seconds=3600, max_entries=256)
+
+
+def _bars(db: Session, instrument: Instrument, days: int) -> list[OhlcBar]:
+    since = datetime.now(UTC) - timedelta(days=days)
+    return list(
+        db.scalars(
+            select(OhlcBar)
+            .where(OhlcBar.instrument_id == instrument.id, OhlcBar.as_of >= since)
+            .order_by(OhlcBar.as_of)
+        )
+    )
+
+
+def _verdict_out(v: decision.Verdict) -> VerdictOut:
+    return VerdictOut(orientation_label=decision.ORIENTATION_LABELS[v.orientation], **v.__dict__)
+
+
+def _watch_item(db: Session, user: User, instrument_id: str) -> WatchlistItem | None:
+    return db.scalars(
+        select(WatchlistItem).where(WatchlistItem.user_id == user.id, WatchlistItem.instrument_id == instrument_id)
+    ).first()
+
+
+def _dt(d) -> datetime:
+    return d if isinstance(d, datetime) else datetime.combine(d, datetime.min.time(), tzinfo=UTC)
 
 
 def _signal_out(s: decision.Signal) -> SignalOut:
@@ -120,14 +155,21 @@ def _fundamentals_status(view: market_service.FundamentalsView) -> FundamentalsS
 def instrument_decision_aid(
     instrument_id: str,
     refresh_fundamentals: bool = False,
+    capital: float = Query(default=10_000.0, ge=100, le=1e9),
+    risk_pct: float = Query(default=1.0, ge=0.1, le=10),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> DecisionAidOut:
     analytics_requests_total.labels(endpoint="decision_aid").inc()
     instrument = get_visible_instrument(instrument_id, db, user)
-    series = _instrument_series(db, instrument, SERIES_DAYS)
+    series = _instrument_series(db, instrument, SERIES_DAYS)  # tops up the bar cache
     closes = [v for _, v in series]
     signals = decision.technical_signals(closes)
+    bars = _bars(db, instrument, SERIES_DAYS)
+    if bars and len(bars) == len(closes) and all(b.high is not None and b.low is not None for b in bars):
+        highs, lows = [float(b.high) for b in bars], [float(b.low) for b in bars]
+    else:
+        highs = lows = None
 
     fundamentals = market_service.get_fundamentals(db, instrument, force=refresh_fundamentals)
     if instrument.asset_class in market_service.FUNDAMENTALS_ASSET_CLASSES and instrument.user_id is None:
@@ -137,15 +179,21 @@ def instrument_decision_aid(
     prediction = None
     if experiment is not None:
         prediction = decision.prediction_signal(
-            experiment.latest_forecast, experiment.metrics, (experiment.config or {}).get("horizon_days")
+            experiment.latest_forecast, experiment.metrics, (experiment.config or {}).get("horizon")
         )
         if prediction is not None:
             signals.append(prediction)
 
     aid = decision.summarize_instrument(signals)
-    last_bar = db.scalars(
-        select(OhlcBar).where(OhlcBar.instrument_id == instrument.id).order_by(OhlcBar.as_of.desc()).limit(1)
-    ).first()
+    vs = decision.verdicts(signals)
+    orientation, confidence, orientation_text = decision.overall_orientation(vs)
+    levels = decision.compute_levels(closes, highs, lows, capital=capital, risk_pct=risk_pct) if closes else None
+    item = _watch_item(db, user, instrument.id)
+    holder = None
+    if item is not None and item.held:
+        hv = decision.holder_view(orientation, levels, float(item.entry_price) if item.entry_price else None)
+        holder = HolderViewOut(held=True, **hv.__dict__)
+    last_bar = bars[-1] if bars else None
     return DecisionAidOut(
         instrument=InstrumentOut.from_model(instrument),
         as_of=datetime.now(UTC),
@@ -157,10 +205,52 @@ def instrument_decision_aid(
             HorizonOut(horizon=h.horizon, label=h.label, tally=_tally_out(h.tally), text=h.text) for h in aid.horizons
         ],
         overall=aid.overall,
+        verdicts=[_verdict_out(v) for v in vs],
+        orientation=orientation,
+        orientation_label=decision.ORIENTATION_LABELS[orientation],
+        orientation_confidence=confidence,
+        orientation_text=orientation_text,
+        levels=LevelsOut(**levels.__dict__) if levels else None,
+        holder=holder,
         fundamentals=_fundamentals_status(fundamentals),
         prediction_available=prediction is not None,
         news_last_7_days=_news_count(db, instrument.id),
         disclaimer=aid.disclaimer,
+    )
+
+
+@router.get("/instruments/{instrument_id}/decision-aid/past", response_model=PastValidationOut)
+def decision_aid_past_validation(
+    instrument_id: str,
+    horizon_days: int = Query(default=20, ge=5, le=120),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> PastValidationOut:
+    """How the short-term readings would have fared on this instrument's own
+    past: computed date by date with only prior data, then compared with
+    the return that followed — and with 'buy any day' as the baseline."""
+    analytics_requests_total.labels(endpoint="decision_aid_past").inc()
+    instrument = get_visible_instrument(instrument_id, db, user)
+    series = _instrument_series(db, instrument, 365 * 4)
+    key = (instrument.id, horizon_days, series[-1][0].isoformat() if series else None, len(series))
+    result = _past_cache.get(key)
+    if result is None:
+        result = decision.past_validation([d for d, _ in series], [v for _, v in series], horizon_days=horizon_days)
+        _past_cache.set(key, result)
+    return PastValidationOut(
+        instrument_id=instrument.id,
+        symbol=instrument.symbol,
+        horizon_days=result.horizon_days,
+        evaluations=result.evaluations,
+        start=_dt(result.start) if result.start else None,
+        end=_dt(result.end) if result.end else None,
+        by_orientation=[OrientationStatsOut(**b.__dict__) for b in result.by_orientation],
+        baseline_mean_return=result.baseline_mean_return,
+        baseline_hit_rate=result.baseline_hit_rate,
+        timeline=[TimelinePointOut(as_of=_dt(d), orientation=o, close=c) for d, o, c in result.timeline],
+        text=result.text,
+        method=result.method,
+        disclaimer=decision.DISCLAIMER,
     )
 
 
@@ -180,7 +270,9 @@ def market_decision_overview(
             .where(Portfolio.user_id == user.id, PositionLot.quantity_remaining > 0)
         )
     }
-    watched = {w.instrument_id for w in db.scalars(select(WatchlistItem).where(WatchlistItem.user_id == user.id))}
+    watch_items = db.scalars(select(WatchlistItem).where(WatchlistItem.user_id == user.id)).all()
+    watched = {w.instrument_id for w in watch_items}
+    held_watch = {w.instrument_id for w in watch_items if w.held}
     since = datetime.now(UTC) - timedelta(days=SERIES_DAYS)
     entries = []
     for instrument_id in sorted(held | watched):
@@ -201,12 +293,16 @@ def market_decision_overview(
             signals += decision.fundamental_signals(cached.data)
         by_key = {s.key: s for s in signals}
         aid = decision.summarize_instrument(signals)
+        orientation, confidence, _ = decision.overall_orientation(decision.verdicts(signals))
         rsi = by_key.get("rsi")
         entries.append(
             DecisionOverviewEntry(
                 instrument=InstrumentOut.from_model(instrument),
-                held=instrument.id in held,
+                held=instrument.id in held or instrument.id in held_watch,
                 watched=instrument.id in watched,
+                orientation=orientation,
+                orientation_label=decision.ORIENTATION_LABELS[orientation],
+                orientation_confidence=confidence,
                 observations=len(closes),
                 tally=_tally_out(aid.tally),
                 trend=by_key["tendance_sma"].reading if "tendance_sma" in by_key else "indisponible",

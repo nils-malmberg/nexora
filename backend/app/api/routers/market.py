@@ -41,6 +41,7 @@ from app.schemas.market import (
     SearchOut,
     WatchlistAddRequest,
     WatchlistItemOut,
+    WatchlistUpdateRequest,
 )
 from app.schemas.transactions import TransactionCreate, TransactionOut
 
@@ -204,20 +205,26 @@ def get_history(
 # --- watchlist ---------------------------------------------------------------
 
 
+def _watchlist_out(db: Session, item: WatchlistItem, *, refresh: bool) -> WatchlistItemOut:
+    return WatchlistItemOut(
+        id=item.id,
+        instrument=InstrumentOut.from_model(item.instrument),
+        quote=quote_out(db, item.instrument, refresh=refresh),
+        held=item.held,
+        entry_price=item.entry_price,
+        entry_date=item.entry_date,
+        quantity=item.quantity,
+        note=item.note,
+        created_at=item.created_at,
+    )
+
+
 @router.get("/watchlist", response_model=list[WatchlistItemOut])
 def list_watchlist(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> list[WatchlistItemOut]:
     items = db.scalars(
         select(WatchlistItem).where(WatchlistItem.user_id == user.id).order_by(WatchlistItem.created_at)
     ).all()
-    return [
-        WatchlistItemOut(
-            id=item.id,
-            instrument=InstrumentOut.from_model(item.instrument),
-            quote=quote_out(db, item.instrument, refresh=False),
-            created_at=item.created_at,
-        )
-        for item in items
-    ]
+    return [_watchlist_out(db, item, refresh=False) for item in items]
 
 
 @router.post("/watchlist", response_model=WatchlistItemOut, status_code=201)
@@ -236,12 +243,34 @@ def add_to_watchlist(
     item = WatchlistItem(user_id=user.id, instrument_id=instrument.id)
     db.add(item)
     db.commit()
-    return WatchlistItemOut(
-        id=item.id,
-        instrument=InstrumentOut.from_model(instrument),
-        quote=quote_out(db, instrument),
-        created_at=item.created_at,
-    )
+    return _watchlist_out(db, item, refresh=True)
+
+
+@router.patch("/watchlist/{item_id}", response_model=WatchlistItemOut)
+def update_watchlist_item(
+    item_id: str,
+    payload: WatchlistUpdateRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _csrf: None = Depends(require_csrf),
+) -> WatchlistItemOut:
+    item = db.get(WatchlistItem, item_id)
+    if item is None or item.user_id != user.id:
+        raise HTTPException(status_code=404, detail="watchlist item not found")
+    if payload.held is not None:
+        item.held = payload.held
+    if payload.clear_entry:
+        item.entry_price = item.entry_date = item.quantity = None
+    if payload.entry_price is not None:
+        item.entry_price = payload.entry_price
+    if payload.entry_date is not None:
+        item.entry_date = payload.entry_date
+    if payload.quantity is not None:
+        item.quantity = payload.quantity
+    if payload.note is not None:
+        item.note = payload.note or None
+    db.commit()
+    return _watchlist_out(db, item, refresh=False)
 
 
 @router.delete("/watchlist/{item_id}", status_code=204)
@@ -337,19 +366,23 @@ def market_overview(user: User = Depends(get_current_user), db: Session = Depend
         .where(Portfolio.user_id == user.id, PositionLot.quantity_remaining > 0)
     ):
         held[lot.instrument_id] = held.get(lot.instrument_id, Decimal("0")) + Decimal(str(lot.quantity_remaining))
-    watched = {w.instrument_id for w in db.scalars(select(WatchlistItem).where(WatchlistItem.user_id == user.id))}
-    ids = sorted(set(held) | watched)
+    items = {w.instrument_id: w for w in db.scalars(select(WatchlistItem).where(WatchlistItem.user_id == user.id))}
+    ids = sorted(set(held) | set(items))
     entries = []
     for instrument_id in ids:
         instrument = db.get(Instrument, instrument_id)
         if instrument is None:
             continue
+        item = items.get(instrument_id)
         entries.append(
             MarketOverviewEntry(
                 instrument=InstrumentOut.from_model(instrument),
                 quote=quote_out(db, instrument, refresh=False),
                 held_quantity=held.get(instrument_id),
-                watched=instrument_id in watched,
+                watched=instrument_id in items,
+                held=instrument_id in held or bool(item and item.held),
+                entry_price=item.entry_price if item else None,
+                watchlist_item_id=item.id if item else None,
             )
         )
     return entries

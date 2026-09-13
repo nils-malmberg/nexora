@@ -1,6 +1,8 @@
 import { getCsrfToken } from "../authStore";
 import type {
   Allocation,
+  AppConfig,
+  ChartTools,
   AuditEntry,
   AuthResponse,
   CalendarEvent,
@@ -35,6 +37,7 @@ import type {
   Notifications,
   OverviewEntry,
   Page,
+  PastValidation,
   Performance,
   Portfolio,
   PortfolioCheckup,
@@ -547,8 +550,10 @@ export function deleteNotification(notificationId: string): Promise<void> {
 
 // --- decision aid -----------------------------------------------------------
 
-export function getDecisionAid(instrumentId: string, refreshFundamentals = false): Promise<DecisionAid> {
-  return request(`/api/v1/instruments/${instrumentId}/decision-aid`, { params: { refresh_fundamentals: refreshFundamentals || undefined } });
+export function getDecisionAid(instrumentId: string, options: { refreshFundamentals?: boolean; capital?: number; riskPct?: number } = {}): Promise<DecisionAid> {
+  return request(`/api/v1/instruments/${instrumentId}/decision-aid`, {
+    params: { refresh_fundamentals: options.refreshFundamentals || undefined, capital: options.capital, risk_pct: options.riskPct },
+  });
 }
 
 export function getDecisionOverview(): Promise<DecisionOverview> {
@@ -561,4 +566,33 @@ export function getPortfolioCheckup(portfolioId: string, days = 365): Promise<Po
 
 export function setTargetAllocation(portfolioId: string, targets: Record<string, number> | null): Promise<Portfolio> {
   return request(`/api/v1/portfolios/${portfolioId}/targets`, { method: "PATCH", body: { target_allocation: targets } });
+}
+
+// --- product config, local session, chart tools, past validation ------------
+
+export function getConfig(): Promise<AppConfig> {
+  return request("/api/v1/config");
+}
+
+export function localLogin(): Promise<AuthResponse> {
+  return request("/api/v1/auth/local", { method: "POST" });
+}
+
+export function updateWatchlistItem(
+  itemId: string,
+  input: { held?: boolean; entry_price?: string | null; entry_date?: string | null; quantity?: string | null; note?: string | null; clear_entry?: boolean },
+): Promise<WatchlistItem> {
+  return request(`/api/v1/market/watchlist/${itemId}`, { method: "PATCH", body: input });
+}
+
+export function getChartTools(instrumentId: string, days = 366): Promise<ChartTools> {
+  return request(`/api/v1/instruments/${instrumentId}/chart-tools`, { params: { days } });
+}
+
+export function getDecisionAidPast(instrumentId: string, horizonDays = 20): Promise<PastValidation> {
+  return request(`/api/v1/instruments/${instrumentId}/decision-aid/past`, { params: { horizon_days: horizonDays } });
+}
+
+export function autoExperiment(instrumentId: string, horizon = 5): Promise<Experiment> {
+  return request(`/api/v1/prediction/auto/${instrumentId}`, { method: "POST", params: { horizon } });
 }

@@ -4,7 +4,7 @@ import uuid
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from sqlalchemy import text
 
@@ -64,6 +64,19 @@ _CSP = (
 )
 
 
+_PORTFOLIO_PREFIXES = ("/api/v1/portfolios", "/api/v1/imports")
+
+
+@app.middleware("http")
+async def portfolio_feature_switch(request: Request, call_next):
+    """The bookkeeping side (portfolios, transactions, imports, consolidated
+    view, realized gains, check-up) is switched off by default since the
+    pivot to market analysis: its routes answer 404 as if absent."""
+    if not settings.portfolios_enabled and request.url.path.startswith(_PORTFOLIO_PREFIXES):
+        return JSONResponse(status_code=404, content={"code": "http_404", "message": "Not Found", "details": None})
+    return await call_next(request)
+
+
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
     """Request correlation id + defensive headers (specs/SECURITY.md: CSP,
@@ -106,6 +119,17 @@ for router in (
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok"}
+
+
+@app.get("/api/v1/config")
+def public_config() -> dict:
+    """Non-sensitive product switches the SPA needs before any session."""
+    return {
+        "single_user": settings.single_user,
+        "portfolios_enabled": settings.portfolios_enabled,
+        "prediction_enabled": settings.prediction_enabled,
+        "environment": settings.environment,
+    }
 
 
 @app.get("/ready")

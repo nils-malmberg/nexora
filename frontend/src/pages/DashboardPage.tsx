@@ -5,6 +5,9 @@ import { FreshnessBadge } from "../components/Badges";
 import { EventCard } from "../components/EventCard";
 import { NewsCard } from "../components/NewsCard";
 import { ProviderStatusBanner } from "../components/ProviderStatusBanner";
+import { DecisionOverviewTable } from "../components/DecisionOverviewTable";
+import { InstrumentSearch } from "../components/InstrumentSearch";
+import { appConfig } from "../configStore";
 import { formatAge, formatAmount, formatDateTime, formatPct } from "../format";
 import { href } from "../router";
 import type { CalendarEvent, Consolidated, NewsItem, OverviewEntry, Portfolio, User, Valuation } from "../types";
@@ -19,6 +22,7 @@ interface PortfolioCard {
  * prices), the market board (cached quotes for what's held/watched), what's
  * coming (events) and what's new (news across tracked instruments). */
 export function DashboardPage({ user }: { user: User }) {
+  const portfolios = appConfig().portfolios_enabled;
   const [cards, setCards] = useState<PortfolioCard[]>([]);
   const [overview, setOverview] = useState<OverviewEntry[]>([]);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
@@ -31,15 +35,15 @@ export function DashboardPage({ user }: { user: User }) {
     let cancelled = false;
     (async () => {
       try {
-        const [portfolios, entries, upcoming, total] = await Promise.all([
-          listPortfolios(),
+        const [portfolioList, entries, upcoming, total] = await Promise.all([
+          portfolios ? listPortfolios() : Promise.resolve([] as Portfolio[]),
           getMarketOverview(),
           listUpcomingEvents({ tz: user.display_timezone, limit: 8 }),
-          getConsolidated().catch(() => null),
+          portfolios ? getConsolidated().catch(() => null) : Promise.resolve(null),
         ]);
-        const valuations = await Promise.all(portfolios.map((p) => getValuation(p.id).catch(() => null)));
+        const valuations = await Promise.all(portfolioList.map((p) => getValuation(p.id).catch(() => null)));
         if (cancelled) return;
-        setCards(portfolios.map((p, i) => ({ portfolio: p, valuation: valuations[i] })));
+        setCards(portfolioList.map((p, i) => ({ portfolio: p, valuation: valuations[i] })));
         setConsolidated(total);
         setOverview(entries);
         setEvents(upcoming);
@@ -63,6 +67,88 @@ export function DashboardPage({ user }: { user: User }) {
   const symbolOf = (instrumentId: string) => overview.find((e) => e.instrument.id === instrumentId)?.instrument.symbol;
 
   if (loading) return <p className="loading-state">Chargement…</p>;
+
+  if (!portfolios) {
+    return (
+      <section aria-label="Accueil">
+        <ProviderStatusBanner />
+        <h2>Marchés — par où commencer ?</h2>
+        {error && <p className="error-state">{error}</p>}
+        <p className="muted">Cherchez n'importe quelle action, ETF, indice ou crypto, puis cliquez « Acheter ou vendre ? » : l'application applique les méthodes reconnues, les explique, et vous laisse décider.</p>
+        <InstrumentSearch />
+        {overview.length === 0 && (
+          <section className="onboarding" aria-label="Pour commencer">
+            <h3>Pour commencer</h3>
+            <div className="card-grid">
+              <a className="card card-link" href={href("markets")}>
+                <h4>1. Chercher un titre</h4>
+                <p className="muted">Apple, LVMH, un ETF Monde, le bitcoin… Cours, graphique avec outils d'analyse, actualités.</p>
+              </a>
+              <a className="card card-link" href={href("help", "acheter-ou-vendre")}>
+                <h4>2. Lire « Acheter ou vendre ? »</h4>
+                <p className="muted">Une orientation par horizon, les arguments pour et contre, les niveaux de stop et d'objectif, et la preuve sur le passé.</p>
+              </a>
+              <a className="card card-link" href={href("help")}>
+                <h4>3. Comprendre chaque méthode</h4>
+                <p className="muted">Chaque chiffre renvoie à un article : tendance, momentum, RSI, PER, Ichimoku, Fibonacci, prédiction…</p>
+              </a>
+            </div>
+          </section>
+        )}
+        <DecisionOverviewTable />
+        <h3>Instruments suivis</h3>
+        {overview.length === 0 ? (
+          <p className="empty-state">Rien à suivre encore : depuis la fiche d'un titre, « Suivre » ou « Je détiens ce titre ».</p>
+        ) : (
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Instrument</th>
+                  <th>Cours</th>
+                  <th>Variation</th>
+                  <th>Fraîcheur</th>
+                  <th>Détenu</th>
+                </tr>
+              </thead>
+              <tbody>
+                {overview.map((e) => {
+                  const change = e.quote?.change_pct ? Number(e.quote.change_pct) / 100 : null;
+                  return (
+                    <tr key={e.instrument.id}>
+                      <td>
+                        <a href={href("markets", e.instrument.id)}>{e.instrument.symbol}</a> <span className="muted">{e.instrument.name}</span>
+                      </td>
+                      <td>{e.quote?.price ? formatAmount(e.quote.price, e.quote.currency ?? e.instrument.currency) : "—"}</td>
+                      <td className={change === null ? undefined : change >= 0 ? "delta-up" : "delta-down"}>{change === null ? "—" : formatPct(change)}</td>
+                      <td>
+                        {e.quote && <FreshnessBadge freshness={e.quote.freshness} />}
+                        {e.quote?.age_seconds != null && <span className="muted"> {formatAge(e.quote.age_seconds)}</span>}
+                      </td>
+                      <td>{e.held ? `oui${e.entry_price ? ` (${formatAmount(e.entry_price, e.instrument.currency)})` : ""}` : "suivi"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <div className="two-columns">
+          <div>
+            <h3>Événements à venir</h3>
+            {events.length === 0 ? <p className="empty-state">Aucun événement connu pour vos instruments.</p> : events.map((ev) => <EventCard key={ev.id} event={ev} instrumentLabel={symbolOf(ev.instrument_id)} />)}
+            <p className="muted">
+              <a href={href("news")}>Tout le calendrier et les actualités</a>
+            </p>
+          </div>
+          <div>
+            <h3>Dernières actualités</h3>
+            {news.length === 0 ? <p className="empty-state">Aucune actualité collectée pour vos instruments (clé Finnhub dans Paramètres › Sources).</p> : news.map((item) => <NewsCard key={item.id} item={item} />)}
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section aria-label="Tableau de bord">
