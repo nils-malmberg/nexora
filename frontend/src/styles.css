@@ -1273,3 +1273,108 @@ code {
     align-items: center;
   }
 }
+
+/* --- decision aid ---------------------------------------------------------- */
+
+.badge.reading {
+  font-weight: 600;
+}
+.badge.reading-favorable,
+.tally-favorable {
+  background: #dcfce7;
+  color: #166534;
+  border-color: #86efac;
+}
+.badge.reading-defavorable,
+.tally-defavorable {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #fca5a5;
+}
+.badge.reading-neutre,
+.tally-neutre {
+  background: #f1f5f9;
+  color: #334155;
+  border-color: #cbd5e1;
+}
+.badge.reading-indisponible,
+.tally-indisponible {
+  background: #fff;
+  color: #64748b;
+  border-style: dashed;
+}
+.reading-favorable-text {
+  color: #166534;
+}
+.reading-defavorable-text {
+  color: #991b1b;
+}
+.badge.evidence-forte {
+  background: #e0f2fe;
+  color: #075985;
+}
+.badge.evidence-moyenne {
+  background: #f1f5f9;
+  color: #334155;
+}
+.badge.evidence-faible {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.tally {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 160px;
+}
+.tally-bar {
+  display: flex;
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #e2e8f0;
+}
+.tally-segment {
+  height: 100%;
+}
+.tally-text {
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.decision-summary {
+  border-left: 4px solid #1d4ed8;
+}
+.decision-summary .card-header {
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+.horizon-card {
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid var(--border, #e2e8f0);
+}
+.horizon-card.active {
+  border-color: #1d4ed8;
+  box-shadow: 0 0 0 2px #bfdbfe;
+}
+.decision-button {
+  background: #14532d;
+}
+.decision-button:hover {
+  background: #166534;
+}
+.signal-table .signal-detail td {
+  background: #f8fafc;
+  border-left: 3px solid #cbd5e1;
+}
+.signal-table .signal-detail p {
+  margin: 0.4rem 0;
+  max-width: 80ch;
+}
+.signal-row.signal-indisponible td {
+  color: #64748b;
+}

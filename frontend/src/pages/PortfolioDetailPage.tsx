@@ -23,6 +23,7 @@ import { formatAmount, formatDateTime, formatPct, formatQuantity } from "../form
 import { ImportWizard } from "../components/ImportWizard";
 import { AnalyticsSection } from "../components/AnalyticsSection";
 import { IncomeRealizedSection } from "../components/IncomeRealizedSection";
+import { PortfolioCheckupPanel } from "../components/PortfolioCheckupPanel";
 import { InstrumentSearch } from "../components/InstrumentSearch";
 import { QuantPanel } from "../components/QuantPanel";
 import { href } from "../router";
@@ -49,8 +50,13 @@ export function PortfolioDetailPage({
   const [error, setError] = useState<string | null>(null);
   const [renaming, setRenaming] = useState(false);
   const [newName, setNewName] = useState(portfolio.name);
-  const [tab, setTab] = useState<"positions" | "transactions" | "import" | "analytics" | "income" | "quant">(
-    initialTab === "import" || initialTab === "transactions" || initialTab === "analytics" || initialTab === "income" || initialTab === "quant"
+  const [tab, setTab] = useState<"positions" | "checkup" | "transactions" | "import" | "analytics" | "income" | "quant">(
+    initialTab === "import" ||
+      initialTab === "transactions" ||
+      initialTab === "analytics" ||
+      initialTab === "income" ||
+      initialTab === "quant" ||
+      initialTab === "checkup"
       ? initialTab
       : "positions",
   );
@@ -122,6 +128,7 @@ export function PortfolioDetailPage({
         {(
           [
             ["positions", "Positions"],
+            ["checkup", "Bilan (aide à la décision)"],
             ["transactions", "Transactions"],
             ["import", "Importer (Trade Republic, Revolut, CSV)"],
             ["analytics", "Historique & performance"],
@@ -162,6 +169,8 @@ export function PortfolioDetailPage({
       {tab === "import" && <ImportWizard portfolioId={portfolio.id} onCommitted={reload} />}
 
       {tab === "analytics" && <AnalyticsSection portfolioId={portfolio.id} instruments={instruments} refreshKey={analyticsRefreshKey} />}
+
+      {tab === "checkup" && <PortfolioCheckupPanel portfolio={portfolio} onPortfolioUpdated={onRenamed} refreshKey={analyticsRefreshKey} />}
 
       {tab === "income" && <IncomeRealizedSection portfolioId={portfolio.id} baseCurrency={portfolio.base_currency} refreshKey={analyticsRefreshKey} />}
 

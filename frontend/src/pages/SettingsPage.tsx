@@ -135,6 +135,10 @@ export function SettingsPage({ user, onAccountDeleted, onUserUpdated }: { user: 
                   </div>
                 )}
               </li>
+              <li>
+                <strong>Fondamentaux (aide à la décision)</strong> : {providers.fundamentals.provider} — {providers.fundamentals.configured ? "configuré" : "non configuré"}
+                <div className="muted">{providers.fundamentals.detail}</div>
+              </li>
               {providers.news.length === 0 && <li className="muted">Aucune autre source d'actualités configurée (flux RSS/ICS : voir Paramètres › Administration).</li>}
             </ul>
             <p className="muted">

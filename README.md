@@ -22,10 +22,18 @@ actions, ETF, indices, crypto-actifs, obligations et actifs privés.
 - **Actualités & événements** : actualités par société récupérées automatiquement (Finnhub, clé
   gratuite) pour chaque action ou ETF suivi, plus flux RSS/JSON/ICS configurables ; chronologie et
   calendrier, dédoublonnage et scoring.
+- **Aide à la décision (un bouton)** : sur chaque fiche, une quinzaine de méthodes reconnues appliquées
+  aux données disponibles — tendance (moyennes 50/200, golden cross), momentum 12 mois, RSI, MACD, Bollinger,
+  fourchette 52 semaines, volatilité, pire repli, Sharpe, PER, P/B, dividende, croissance, ROE, marge, dette,
+  consensus des analystes, bêta, prédiction expérimentale — chacune avec sa lecture (favorable / défavorable /
+  neutre / indisponible), son explication en français simple, son seuil et son niveau de preuve ; comptées par
+  horizon, jamais pondérées en verdict. **Bilan rapide** de tous les instruments suivis sur la page Marchés,
+  **bilan de portefeuille** (concentration, diversification, corrélation, risque, écart à votre allocation cible).
+  Fondamentaux via Finnhub (clé gratuite). Information, jamais conseil personnalisé ni exécution.
 - **Alertes informatives** : seuil de cours ou variation quotidienne sur un instrument, évaluées
   sur les données en cache (jamais de requête supplémentaire), notification dans l'application —
   jamais un ordre.
-- **Aide** : 23 articles sur la théorie derrière chaque chiffre (valorisation, FIFO, TWR/MWR,
+- **Aide** : 27 articles sur la théorie derrière chaque chiffre (valorisation, FIFO, TWR/MWR,
   ratios, VaR, MEDAF, Markowitz, efficience des marchés, indicateurs techniques, walk-forward,
   métamodèles…), consultables depuis chaque écran.
 - **Prédiction (expérimental, désactivé par défaut)** : entraînement d'un métamodèle (stacking de

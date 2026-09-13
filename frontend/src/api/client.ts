@@ -8,6 +8,8 @@ import type {
   Comparison,
   Consolidated,
   CorrelationResult,
+  DecisionAid,
+  DecisionOverview,
   Drawdown,
   EducationArticle,
   EducationSummary,
@@ -35,6 +37,7 @@ import type {
   Page,
   Performance,
   Portfolio,
+  PortfolioCheckup,
   Position,
   PredictionStatus,
   PriceAlert,
@@ -540,4 +543,22 @@ export function markNotificationsRead(ids?: string[]): Promise<Notifications> {
 
 export function deleteNotification(notificationId: string): Promise<void> {
   return request(`/api/v1/notifications/${notificationId}`, { method: "DELETE" });
+}
+
+// --- decision aid -----------------------------------------------------------
+
+export function getDecisionAid(instrumentId: string, refreshFundamentals = false): Promise<DecisionAid> {
+  return request(`/api/v1/instruments/${instrumentId}/decision-aid`, { params: { refresh_fundamentals: refreshFundamentals || undefined } });
+}
+
+export function getDecisionOverview(): Promise<DecisionOverview> {
+  return request("/api/v1/market/decision-overview");
+}
+
+export function getPortfolioCheckup(portfolioId: string, days = 365): Promise<PortfolioCheckup> {
+  return request(`/api/v1/portfolios/${portfolioId}/checkup`, { params: { days } });
+}
+
+export function setTargetAllocation(portfolioId: string, targets: Record<string, number> | null): Promise<Portfolio> {
+  return request(`/api/v1/portfolios/${portfolioId}/targets`, { method: "PATCH", body: { target_allocation: targets } });
 }

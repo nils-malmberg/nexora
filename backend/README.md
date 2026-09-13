@@ -16,7 +16,7 @@ cd backend
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 alembic upgrade head          # SQLite local par défaut (./nexora.db), aucune base externe requise
-pytest tests -q               # 344 tests, tous hors ligne (fournisseurs "fixture", respx pour le HTTP)
+pytest tests -q               # 366 tests, tous hors ligne (fournisseurs "fixture", respx pour le HTTP)
 uvicorn app.api.main:app --reload --port 8000
 python -m app.worker.scheduler   # optionnel : rafraîchissement périodique marché + actualités
 ```
@@ -29,11 +29,13 @@ origine, cookie de session first-party, aucun CORS à configurer.
 ```
 app/api/            routeurs HTTP (auth, me, portfolios, instruments, market, imports, analytics,
                     news, timeline, events, education, prediction, providers, admin, wealth :
-                    consolidé / réalisé / revenus / stratégie / comparaison / alertes), deps, erreurs
+                    consolidé / réalisé / revenus / stratégie / comparaison / alertes, decision :
+                    aide à la décision / bilan rapide / bilan portefeuille / allocation cible), deps, erreurs
 app/domain/         règles métier pures : positions FIFO + valorisation (positions.py), FX (fx.py),
                     analyse Phase 2 (analytics.py), boîte à outils quantitative + étude de stratégie
                     (quant.py), plus-values réalisées et revenus (realized.py), patrimoine consolidé
-                    (consolidated.py), alertes informatives (alerts.py), import CSV (csv_import.py)
+                    (consolidated.py), alertes informatives (alerts.py), aide à la décision
+                    (decision.py : lectures documentées + bilan de portefeuille), import CSV (csv_import.py)
                     et profils d'export courtier Trade Republic / Revolut (broker_presets.py)
 app/market/         fournisseurs de marché interchangeables : contrat (base.py), yahoo, coingecko,
                     finnhub, frankfurter, fixture/null ; budget de requêtes (ratelimit.py), HTTP
@@ -43,7 +45,7 @@ app/news/           pipeline Actualités & Événements (adaptateurs RSS/JSON/IC
                     Finnhub « company-news » par action/ETF suivi (clé FINNHUB_API_KEY)
 app/prediction/     moteur expérimental (engine.py : jeu de données sans fuite, walk-forward,
                     métamodèle) et service d'exécution
-app/education_content.py   contenu d'aide versionné (23 articles)
+app/education_content.py   contenu d'aide versionné (27 articles)
 app/worker/         scheduler APScheduler (ingestion actualités, rafraîchissement marché puis
                     évaluation des alertes sur les données stockées)
 alembic/            une seule histoire de migrations (schéma unifié)
@@ -125,6 +127,21 @@ totaux. `income_report` regroupe dividendes/coupons/intérêts et frais (autonom
 achats/ventes) par année, mois et instrument. `consolidated_view` convertit chaque portefeuille dans
 la devise de référence de l'utilisateur (taux et source par portefeuille) ; ce qui n'est pas
 convertible est listé, jamais estimé. La règle fiscale (PMP en France) peut différer : l'aide le dit.
+
+## Aide à la décision
+
+`app/domain/decision.py` (pur, testé unitairement) applique des méthodes reconnues et renvoie pour chacune
+une lecture `favorable` / `defavorable` / `neutre` / `indisponible`, une explication en français, la valeur,
+le seuil classique et un niveau de preuve académique. Techniques : SMA50/200 et croisement, momentum 12-1,
+RSI, MACD, %B de Bollinger, fourchette 52 semaines, volatilité, drawdown, Sharpe 1 an. Fondamentaux (actions
+du catalogue) : PER, P/B, rendement, croissance du BPA, ROE, marge nette, dette/capitaux, consensus
+d'analystes, bêta — via la capacité `fundamentals` du contrat fournisseur (Finnhub `/stock/metric` +
+`/stock/recommendation`, fixture), en cache 24 h par instrument (`instrument_fundamentals`), sous budget et
+disjoncteur, échec mémorisé une heure. La prédiction expérimentale n'est comptée que si le métamodèle bat le
+naïf hors échantillon. Les lectures sont comptées par horizon (court terme / long terme / risque), jamais
+pondérées ; la réponse porte toujours le disclaimer. `GET /market/decision-overview` ne lit que le cache.
+`portfolio_checkup` juge la structure (plus grosse ligne > 25 %, < 5 lignes, classe > 90 %, devises,
+trésorerie, corrélation moyenne, volatilité/repli, ±30 % latent, écart > 10 pts à `target_allocation`).
 
 ## Alertes informatives
 

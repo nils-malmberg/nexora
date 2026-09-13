@@ -13,6 +13,7 @@ import { CandlestickChart } from "../charts/CandlestickChart";
 import { LineChart, type ChartBand, type ChartPoint, type ChartSeries } from "../charts/LineChart";
 import { AlertForm } from "../components/AlertForm";
 import { AssetClassBadge, FreshnessBadge, QuoteStatusBadge } from "../components/Badges";
+import { DecisionAidPanel } from "../components/DecisionAidPanel";
 import { EducationNote } from "../components/EducationNote";
 import { QuantPanel } from "../components/QuantPanel";
 import { QuickBuyDialog } from "../components/QuickBuyDialog";
@@ -28,7 +29,7 @@ import { TimelinePage } from "./TimelinePage";
 
 const RANGE_DAYS: Record<HistoryRange, number> = { "1w": 7, "1m": 31, "3m": 93, "6m": 186, "1y": 366, "2y": 732, "5y": 1830, max: 3650 };
 
-type Tab = "chart" | "quant" | "strategy" | "news" | "timeline" | "events" | "alerts";
+type Tab = "chart" | "decision" | "quant" | "strategy" | "news" | "timeline" | "events" | "alerts";
 
 function toPoints(dates: string[], values: (string | null)[]): ChartPoint[] {
   const points: ChartPoint[] = [];
@@ -166,6 +167,9 @@ export function InstrumentPage({ instrumentId, initialTab }: { instrumentId: str
         </div>
       </div>
       <div className="toolbar">
+        <button type="button" className="primary-button decision-button" onClick={() => setTab("decision")} aria-pressed={tab === "decision"}>
+          Aide à la décision
+        </button>
         <button type="button" className="primary-button" onClick={() => setShowBuy(true)}>
           Ajouter au portefeuille
         </button>
@@ -200,6 +204,7 @@ export function InstrumentPage({ instrumentId, initialTab }: { instrumentId: str
         {(
           [
             ["chart", "Cours & indicateurs"],
+            ["decision", "Aide à la décision"],
             ["quant", "Analyse quantitative"],
             ["strategy", "Étude de stratégie"],
             ["news", "Actualités"],
@@ -374,6 +379,7 @@ export function InstrumentPage({ instrumentId, initialTab }: { instrumentId: str
         </>
       )}
 
+      {tab === "decision" && <DecisionAidPanel instrument={instrument} />}
       {tab === "quant" && <QuantPanel subject={{ instrument_id: instrument.id }} currency={currency} label={instrument.symbol} />}
       {tab === "strategy" && <StrategyStudyPanel instrument={instrument} />}
       {tab === "alerts" && <AlertForm instrument={instrument} quote={quote} />}

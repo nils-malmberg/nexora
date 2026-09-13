@@ -185,6 +185,7 @@ export interface Portfolio {
   id: string;
   name: string;
   base_currency: string;
+  target_allocation: Record<string, number> | null;
   created_at: string;
   updated_at: string;
 }
@@ -671,6 +672,7 @@ export interface ProvidersOverview {
   market: MarketProviderPublic[];
   news: NewsProviderStatus[];
   auto_news: AutoNewsStatus;
+  fundamentals: FundamentalsSource;
   prediction_enabled: boolean;
   quote_freshness_minutes: number;
 }
@@ -1075,4 +1077,137 @@ export interface Notification {
 export interface Notifications {
   items: Notification[];
   unread: number;
+}
+
+// ---------------------------------------------------------------------------
+// Decision aid
+// ---------------------------------------------------------------------------
+
+export type Reading = "favorable" | "defavorable" | "neutre" | "indisponible";
+export const READING_LABELS: Record<Reading, string> = {
+  favorable: "Favorable",
+  defavorable: "Défavorable",
+  neutre: "Neutre",
+  indisponible: "Indisponible",
+};
+export const READING_HINTS: Record<Reading, string> = {
+  favorable: "lecture manuel : plutôt favorable à un achat ou à la conservation",
+  defavorable: "lecture manuel : plutôt défavorable à un achat, favorable à une vente ou à l'abstention",
+  neutre: "la méthode ne tranche pas",
+  indisponible: "donnée manquante — jamais estimée",
+};
+export const FAMILY_LABELS: Record<string, string> = {
+  tendance: "Tendance",
+  momentum: "Momentum",
+  volatilite: "Volatilité",
+  valorisation: "Valorisation",
+  qualite: "Qualité de l'entreprise",
+  consensus: "Consensus",
+  risque: "Risque",
+  prediction: "Prédiction (expérimental)",
+  diversification: "Diversification",
+  allocation: "Allocation",
+  positions: "Positions",
+  donnees: "Données",
+};
+export const EVIDENCE_LABELS: Record<string, string> = { forte: "preuve forte", moyenne: "preuve moyenne", faible: "preuve faible" };
+
+export interface Signal {
+  key: string;
+  family: string;
+  horizon: "court_terme" | "long_terme" | "transversal";
+  label: string;
+  reading: Reading;
+  detail: string;
+  value: string | null;
+  strength: "faible" | "moyen" | "fort";
+  evidence: "forte" | "moyenne" | "faible";
+  help_slug: string | null;
+}
+
+export interface Tally {
+  favorable: number;
+  defavorable: number;
+  neutre: number;
+  indisponible: number;
+  available: number;
+}
+
+export interface HorizonSummary {
+  horizon: "court_terme" | "long_terme" | "transversal";
+  label: string;
+  tally: Tally;
+  text: string;
+}
+
+export interface FundamentalsStatus {
+  status: "fresh" | "cached" | "stale" | "unavailable" | "not_supported" | "not_configured";
+  reason: string | null;
+  provider: string | null;
+  as_of: string | null;
+  source: string | null;
+  license_note: string | null;
+  env_var: string | null;
+}
+
+export interface DecisionAid {
+  instrument: Instrument;
+  as_of: string;
+  observations: number;
+  price_source: string | null;
+  signals: Signal[];
+  tally: Tally;
+  horizons: HorizonSummary[];
+  overall: string;
+  fundamentals: FundamentalsStatus;
+  prediction_available: boolean;
+  news_last_7_days: number;
+  disclaimer: string;
+}
+
+export interface DecisionOverviewEntry {
+  instrument: Instrument;
+  held: boolean;
+  watched: boolean;
+  observations: number;
+  tally: Tally;
+  trend: Reading;
+  momentum: Reading;
+  rsi: string | null;
+  rsi_reading: Reading;
+  valuation: Reading;
+  overall: string;
+}
+
+export interface DecisionOverview {
+  entries: DecisionOverviewEntry[];
+  fundamentals_configured: boolean;
+  disclaimer: string;
+}
+
+export interface AllocationShare {
+  label: string;
+  share: number;
+  target: number | null;
+  drift: number | null;
+}
+
+export interface PortfolioCheckup {
+  portfolio_id: string;
+  base_currency: string;
+  as_of: string;
+  total_value: string;
+  signals: Signal[];
+  tally: Tally;
+  overall: string;
+  allocation: AllocationShare[];
+  has_targets: boolean;
+  disclaimer: string;
+}
+
+export interface FundamentalsSource {
+  provider: string;
+  configured: boolean;
+  env_var: string | null;
+  detail: string;
 }
