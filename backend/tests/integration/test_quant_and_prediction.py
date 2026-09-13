@@ -239,3 +239,62 @@ def test_prediction_rejects_unknown_model(registered_user, db_session):
         headers=_headers(csrf),
     )
     assert resp.status_code == 422
+
+
+def test_auto_experiment_is_reused_within_the_day(registered_user, db_session):
+    client, csrf, _ = registered_user
+    instrument = _shared_instrument(db_session, "AUTO")
+    _seed_bars(db_session, instrument.id, n=400, seed=12)
+    first = client.post(f"/api/v1/prediction/auto/{instrument.id}", params={"horizon": 5}, headers=_headers(csrf))
+    assert first.status_code == 201, first.text
+    body = first.json()
+    assert body["name"] == "auto-5j" and body["status"] == "completed" and body["latest_forecast"]
+    again = client.post(f"/api/v1/prediction/auto/{instrument.id}", params={"horizon": 5}, headers=_headers(csrf))
+    assert again.json()["id"] == body["id"]
+    other = client.post(f"/api/v1/prediction/auto/{instrument.id}", params={"horizon": 10}, headers=_headers(csrf))
+    assert other.json()["id"] != body["id"] and other.json()["name"] == "auto-10j"
+    # The decision aid picks the prediction up (config key "horizon").
+    aid = client.get(f"/api/v1/instruments/{instrument.id}/decision-aid").json()
+    pred = next(s for s in aid["signals"] if s["key"] == "prediction")
+    assert "10 j" in pred["label"] or "5 j" in pred["label"]
+
+
+def test_chart_tools_endpoint(registered_user, db_session):
+    client, csrf, _ = registered_user
+    instrument = _shared_instrument(db_session, "TOOLS")
+    _seed_bars(db_session, instrument.id, n=300, seed=8)
+    resp = client.get(f"/api/v1/instruments/{instrument.id}/chart-tools", params={"days": 400})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["has_ohlc"] is True and len(body["dates"]) == 300
+    assert len(body["ichimoku"]["tenkan"]) == 300 and len(body["ichimoku"]["future_dates"]) == 26
+    assert body["ichimoku"]["reading"] and body["sar"]["reading"]
+    assert [p["period"] for p in body["pivots"]] == ["jour", "semaine", "mois"]
+    assert body["pivots"][0]["s3"] < body["pivots"][0]["pivot"] < body["pivots"][0]["r3"]
+    assert body["fibonacci"]["direction"] in ("hausse", "baisse") and len(body["fibonacci"]["levels"]) == 7
+    assert isinstance(body["supports"], list) and isinstance(body["resistances"], list)
+    for pattern in body["patterns"]:
+        assert pattern["name"] and pattern["direction"] in ("haussier", "baissier", "indecision")
+
+    private = client.post(
+        "/api/v1/instruments",
+        json={"symbol": "CLS", "name": "Close only", "asset_class": "crypto", "currency": "EUR"},
+        headers=_headers(csrf),
+    ).json()
+    from app.models import OhlcBar as Bar
+
+    start = datetime.now(UTC) - timedelta(days=40)
+    for i in range(40):
+        db_session.add(
+            Bar(
+                instrument_id=private["id"],
+                as_of=start + timedelta(days=i),
+                close=Decimal(100 + i),
+                currency="EUR",
+                source="manual",
+            )
+        )
+    db_session.commit()
+    body = client.get(f"/api/v1/instruments/{private['id']}/chart-tools").json()
+    assert body["has_ohlc"] is False and body["ichimoku"] is None and body["sar"] is None and body["pivots"] == []
+    assert body["fibonacci"]["direction"] == "hausse"

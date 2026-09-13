@@ -9,7 +9,9 @@ benchmark. Nothing here is a price target, a signal, or advice.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from datetime import UTC, datetime
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -18,7 +20,13 @@ from app.config import settings
 from app.models import AuditEvent, Instrument, PredictionExperiment, User
 from app.prediction import service as prediction_service
 from app.prediction.engine import BASE_MODELS, CODE_VERSION
-from app.schemas.prediction import ExperimentCreate, ExperimentOut, ExperimentSummaryOut, PredictionStatusOut
+from app.schemas.prediction import (
+    ExperimentConfigIn,
+    ExperimentCreate,
+    ExperimentOut,
+    ExperimentSummaryOut,
+    PredictionStatusOut,
+)
 
 router = APIRouter(prefix="/api/v1/prediction", tags=["prediction"])
 
@@ -130,6 +138,57 @@ def create_experiment(
     if payload.run_now:
         prediction_service.start_experiment(exp.id, background=settings.environment != "test", db=db)
         db.refresh(exp)
+    return _full(exp, db)
+
+
+@router.post("/auto/{instrument_id}", response_model=ExperimentOut, status_code=201)
+def auto_experiment(
+    instrument_id: str,
+    horizon: int = Query(default=5, ge=1, le=60),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _csrf: None = Depends(require_csrf),
+) -> ExperimentOut:
+    """One click for a novice: the default configuration on this
+    instrument. An 'auto' experiment already trained (or running) today for
+    the same horizon is returned instead of a new one."""
+    _require_enabled()
+    instrument = get_visible_instrument(instrument_id, db, user)
+    name = f"auto-{horizon}j"
+    today = datetime.now(UTC).date()
+    existing = db.scalars(
+        select(PredictionExperiment)
+        .where(
+            PredictionExperiment.user_id == user.id,
+            PredictionExperiment.instrument_id == instrument.id,
+            PredictionExperiment.name == name,
+        )
+        .order_by(PredictionExperiment.created_at.desc())
+        .limit(1)
+    ).first()
+    if existing is not None and existing.status in ("pending", "running"):
+        return _full(existing, db)
+    if existing is not None and existing.status == "completed" and existing.created_at.date() == today:
+        return _full(existing, db)
+    if existing is not None:
+        db.delete(existing)  # yesterday's auto run: replaced, keeps the per-user limit untouched
+        db.flush()
+    count = db.scalar(select(func.count(PredictionExperiment.id)).where(PredictionExperiment.user_id == user.id)) or 0
+    if count >= settings.prediction_max_experiments_per_user:
+        raise HTTPException(status_code=409, detail="experiment limit reached; delete older experiments first")
+    exp = PredictionExperiment(
+        user_id=user.id,
+        instrument_id=instrument.id,
+        name=name,
+        status="pending",
+        config=ExperimentConfigIn(horizon=horizon).model_dump(),
+        code_version=CODE_VERSION,
+    )
+    db.add(exp)
+    db.add(AuditEvent(user_id=user.id, action="prediction.auto", target_type="experiment", target_id=exp.id))
+    db.commit()
+    prediction_service.start_experiment(exp.id, background=settings.environment != "test", db=db)
+    db.refresh(exp)
     return _full(exp, db)
 
 

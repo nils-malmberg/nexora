@@ -179,7 +179,7 @@ def instrument_decision_aid(
     prediction = None
     if experiment is not None:
         prediction = decision.prediction_signal(
-            experiment.latest_forecast, experiment.metrics, (experiment.config or {}).get("horizon_days")
+            experiment.latest_forecast, experiment.metrics, (experiment.config or {}).get("horizon")
         )
         if prediction is not None:
             signals.append(prediction)
