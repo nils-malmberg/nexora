@@ -1,9 +1,10 @@
-"""Structured error responses: {code, message, details, request_id} - never a
-secret or provider payload, per specs/API_SPEC.md and specs/SECURITY.md."""
+"""Structured error responses: {code, message, details, request_id} — never a
+secret or another user's data, per specs/API_SPEC.md and specs/SECURITY.md."""
 
 from __future__ import annotations
 
 from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -28,10 +29,13 @@ def register_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(RequestValidationError)
     async def handle_validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
+        # jsonable_encoder, not a raw model_dump(): pydantic's error `ctx` can
+        # embed the original exception object (e.g. a ValueError raised from a
+        # custom validator), which plain json.dumps() cannot serialize.
         body = ErrorResponse(
             code="validation_error",
             message="invalid request",
-            details={"errors": exc.errors()},
+            details={"errors": jsonable_encoder(exc.errors())},
             request_id=_request_id(request),
         )
         return JSONResponse(status_code=422, content=body.model_dump())

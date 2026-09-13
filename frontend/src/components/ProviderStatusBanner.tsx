@@ -1,30 +1,43 @@
 import { useEffect, useState } from "react";
 import { getProvidersStatus } from "../api/client";
-import type { ProviderStatus } from "../types";
+import type { ProvidersOverview } from "../types";
 
+/** Degraded-mode banner: which market/news sources are paused or down. The
+ * data already known stays displayed; the banner just says why it may be
+ * stale (specs/NEWS_AND_EVENTS.md, specs/ARCHITECTURE.md "dégradation lisible"). */
 export function ProviderStatusBanner() {
-  const [degraded, setDegraded] = useState<ProviderStatus[]>([]);
+  const [overview, setOverview] = useState<ProvidersOverview | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     getProvidersStatus()
-      .then((statuses) => {
-        if (!cancelled) setDegraded(statuses.filter((s) => !s.healthy || !s.enabled));
+      .then((o) => {
+        if (!cancelled) setOverview(o);
       })
       .catch(() => {
-        // Silently ignore: a failing status check should not block the page.
+        // a failing status check must never block the page
       });
     return () => {
       cancelled = true;
     };
   }, []);
 
-  if (degraded.length === 0) return null;
+  if (!overview) return null;
+  const degradedMarket = overview.market.filter((m) => !m.healthy);
+  const degradedNews = overview.news.filter((n) => !n.healthy || !n.enabled);
+  if (degradedMarket.length === 0 && degradedNews.length === 0) return null;
 
   return (
     <div className="provider-banner" role="status">
-      Mode dégradé : {degraded.length} fournisseur(s) indisponible(s) ou désactivé(s) (
-      {degraded.map((p) => p.name).join(", ")}). Les données déjà connues restent affichées.
+      Mode dégradé :{" "}
+      {degradedMarket.length > 0 && (
+        <>
+          données de marché « {degradedMarket.map((m) => `${m.name} (${m.role})`).join(", ")} » indisponibles ou en pause
+          {degradedNews.length > 0 ? " ; " : ". "}
+        </>
+      )}
+      {degradedNews.length > 0 && <>sources d'actualités indisponibles : {degradedNews.map((n) => n.name).join(", ")}. </>}
+      Les dernières données connues restent affichées avec leur âge.
     </div>
   );
 }

@@ -53,21 +53,78 @@ Sources réelles vérifiées (URL testée, licence et quotas confirmés à la so
 - **Authentification réelle** : paramètre de requête `token`, confirmé par `securityDefinitions` du schéma OpenAPI (`"in": "query"`, pas un en-tête). L'adaptateur supporte désormais `auth.in: "query"`.
 - **⚠️ Constat opérationnel** : la clé fournie lors de la configuration initiale a été testée en direct (requête réelle, en dehors de l'application) et retourne `401 Invalid API key`, avec les deux mécanismes d'authentification. Vérifier la clé sur finnhub.io (Dashboard → API Keys) et la remplacer dans `.env`.
 
+### Finnhub — actualités automatiques par instrument (`backend/app/news/auto.py`)
+
+Même clé et mêmes conditions que ci-dessus. Un feed `company-news` est créé automatiquement par
+action/ETF du catalogue partagé (symbole du fournisseur de marché, fenêtre glissante de 30 jours),
+rafraîchi à la demande au plus une fois par heure par instrument et par le worker toutes les
+15 minutes pour les seuls instruments détenus ou suivis. Une réponse 4xx (clé invalide, symbole
+inconnu) n'est jamais re-tentée ; au-delà de `NEXORA_AUTO_DISABLE_AFTER_FAILURES` échecs la source
+se désactive et doit être réactivée par un administrateur.
+
 ### Calendrier ICS — aucune source retenue pour l'instant
 
 Aucun calendrier ICS officiel (Réserve fédérale, NYSE, Nasdaq) n'a été trouvé avec une licence de réutilisation programmatique claire ; les agrégateurs tiers identifiés affichent un copyright « tous droits réservés » sans autorisation explicite. À réévaluer si une société suivie publie son propre calendrier IR en ICS.
 
-## Module Portefeuille — aucun fournisseur de marché réel branché
+## Fournisseurs de données de marché — application unifiée (`backend/app/market/`)
 
-`portfolio-backend/app/adapters/market_data.py` définit l'interface `MarketDataProvider` mais
-n'expose que deux implémentations sûres : `NullMarketDataProvider` (défaut, ne renvoie jamais de
-donnée) et `FixtureMarketDataProvider` (fixtures JSON locales, démo/tests uniquement). Aucun appel
-réseau réel n'est effectué par ce module pour l'instant ; chaque prix affiché vient d'une saisie
-manuelle (`POST /instruments/{id}/prices`) ou, dans une PR ultérieure, d'un import CSV.
+Adaptateurs interchangeables derrière `MarketDataProvider` / `FxProvider` (`base.py`), choisis par
+famille d'actifs via `NEXORA_MARKET_EQUITY_PROVIDER`, `NEXORA_MARKET_CRYPTO_PROVIDER` et
+`NEXORA_MARKET_FX_PROVIDER` (`registry.py`). Chaque réponse porte `source`, `retrieved_at`,
+`as_of`, `is_delayed` et `license_note` ; les erreurs sont typées (`MarketRateLimited`,
+`MarketNotFound`, `MarketNotSupported`, `MarketMisconfigured`, `MarketUnavailable`).
 
-Le candidat naturel pour un premier fournisseur réel est **Finnhub** (`/quote` et `/stock/candle`),
-puisqu'une clé fonctionnelle est déjà configurée pour le module Actualités & Événements — sous
-réserve de revérifier que son offre gratuite couvre bien les cotations (pas seulement les
-actualités) et les conditions d'usage associées. Comme pour SEC EDGAR/Finnhub ci-dessus, le
-branchement d'un fournisseur réel ici suivra le même processus : vérification licence/quotas,
-proposition explicite, et confirmation avant toute création réelle en base ou tout appel réseau.
+Politique anti-abus commune (`http.py`, `service.py`) : budget local par fournisseur (seau à
+jetons, `NEXORA_<PROVIDER>_RATE_LIMIT_PER_MINUTE`, refus immédiat → cache), cache-first
+(`price_points`, `ohlc_bars`, `fx_rates` + caches mémoire courts), disjoncteur persistant
+(`market_providers` : 3 échecs → pause 10 min ; `NEXORA_MARKET_AUTO_DISABLE_AFTER_FAILURES`
+échecs → désactivation, réactivation manuelle par un administrateur), rafraîchissement en
+arrière-plan limité aux instruments détenus/suivis. Les tests n'appellent jamais un fournisseur
+réel (adaptateurs `fixture`/`null`, HTTP intercepté par `respx`).
+
+### Yahoo Finance (`yahoo.py`, défaut pour actions/ETF/indices)
+
+- **Type** : endpoints JSON publics du site (`/v1/finance/search`, `/v8/finance/chart/{symbol}`),
+  sans clé ni cookie — **API non officielle**, non documentée.
+- **Licence** : conditions de Yahoo : usage personnel et non commercial, pas de redistribution ;
+  données souvent différées (15 min ou plus selon la place). Affiché à l'utilisateur via
+  `license_note`/`attribution`. Peut cesser de fonctionner sans préavis → basculer vers
+  `finnhub` ou `null`.
+- **Quotas** : non publiés ; budget local de 20 requêtes/min par processus, bien en deçà des
+  seuils observés ; `User-Agent` descriptif (`NEXORA_MARKET_USER_AGENT`).
+- **Couverture** : recherche (EQUITY/ETF/INDEX/CURRENCY/CRYPTOCURRENCY), cotation
+  (`regularMarketPrice`, `chartPreviousClose`), historique quotidien OHLCV (lignes nulles des
+  jours fériés ignorées, jamais interpolées).
+
+### CoinGecko (`coingecko.py`, défaut pour les crypto-actifs)
+
+- **Type** : API publique v3 (`/search`, `/simple/price`, `/coins/{id}/market_chart`), sans clé ;
+  clé « demo » optionnelle (`COINGECKO_API_KEY`, en-tête `x-cg-demo-api-key`).
+- **Licence** : offre gratuite pour usage personnel/non commercial, attribution
+  « Powered by CoinGecko » requise (affichée). Quotas partagés par IP (~10-30 appels/min,
+  429 stricts) → budget local de 8 requêtes/min.
+- **Couverture** : cotation et historique quotidien en USD (converti ensuite par la couche FX) ;
+  le `market_chart` ne publie que des clôtures et volumes : barres sans open/high/low, tracées en
+  ligne.
+
+### Finnhub (`finnhub.py`, alternative pour les actions)
+
+- Même clé et mêmes conditions que pour les actualités (section ci-dessus) ; `/search`, `/quote`,
+  `/stock/profile2` gratuits ; `/stock/candle` restreint sur l'offre gratuite → signalé comme
+  `not_supported`, jamais silencieux. Budget local 30 requêtes/min.
+
+### Frankfurter — taux de référence BCE (`frankfurter.py`, défaut pour le change)
+
+- **Type** : API open source sans clé (`https://api.frankfurter.dev/v1`), publiant les taux de
+  référence quotidiens de la Banque centrale européenne.
+- **Licence** : données BCE réutilisables avec attribution (affichée) ; un taux par jour ouvré,
+  fixé vers 16:00 CET — un taux de référence, pas un cours négociable.
+- **Usage** : séries entières récupérées d'un coup pour une paire et une période
+  (`ensure_fx_series`), stockées dans `fx_rates` avec date et provenance ; un montant sans taux
+  connu reste non converti.
+
+### `fixture` / `null`
+
+`fixture` (`tests/fixtures/market_data/demo_quotes.json`) : données synthétiques pour les tests et
+le profil `demo` de docker-compose. `null` : aucune donnée de marché vivante (saisie manuelle
+uniquement). Aucun des deux n'effectue de requête réseau.

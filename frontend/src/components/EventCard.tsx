@@ -11,11 +11,13 @@ const STATUS_LABELS: Record<string, string> = {
 
 export function EventCard({
   event,
+  instrumentLabel,
   dismissed = false,
   onDismiss,
   onRestore,
 }: {
   event: CalendarEvent;
+  instrumentLabel?: string;
   dismissed?: boolean;
   onDismiss?: () => void;
   onRestore?: () => void;
@@ -26,7 +28,10 @@ export function EventCard({
         <span className="badge event-status">{STATUS_LABELS[event.status] ?? event.status}</span>
         {event.stale && <span className="badge stale">Non re-vérifié récemment</span>}
       </div>
-      <h3>{event.type.replaceAll("_", " ")}</h3>
+      <h3>
+        {event.type.replaceAll("_", " ")}
+        {instrumentLabel && <span className="muted"> — {instrumentLabel}</span>}
+      </h3>
       <div className="meta-row">
         {event.starts_at ? (
           <span>{formatDateTime(event.starts_at, event.timezone)}</span>
@@ -56,8 +61,8 @@ export function EventCard({
       <details className="details-toggle">
         <summary>Détails</summary>
         <dl className="details-grid">
-          <dt>Actif</dt>
-          <dd>{event.asset_id}</dd>
+          <dt>Instrument</dt>
+          <dd>{instrumentLabel ?? event.instrument_id}</dd>
           <dt>Fuseau horaire</dt>
           <dd>{event.timezone}</dd>
           <dt>Nombre de sources</dt>
@@ -71,6 +76,7 @@ export function EventCard({
         </dl>
       </details>
 
+      {(onDismiss || onRestore) && (
       <div className="card-actions">
         {dismissed ? (
           <button type="button" onClick={onRestore} className="link-button">
@@ -82,6 +88,7 @@ export function EventCard({
           </button>
         )}
       </div>
+      )}
     </article>
   );
 }

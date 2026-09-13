@@ -1,14 +1,30 @@
 # NeXora — Dashboard multi-actifs
 
-Ce dépôt implémente progressivement le dashboard décrit dans [`specs/README.md`](specs/README.md), sous
-forme de **services indépendants** (chacun avec sa base de données, son API et son frontend) plutôt
-qu'une application monolithique :
+Une seule application (`specs/README.md`) pour suivre les marchés et un patrimoine multi-actifs :
+actions, ETF, indices, crypto-actifs, obligations et actifs privés.
 
-- **Actualités & Événements** ([`specs/NEWS_AND_EVENTS.md`](specs/NEWS_AND_EVENTS.md)) : faits,
-  synthèses et estimations sourcés par instrument.
-- **Portefeuille** ([`specs/ARCHITECTURE.md`](specs/ARCHITECTURE.md), Phase 1 de
-  [`specs/ROADMAP.md`](specs/ROADMAP.md)) : authentification, portefeuilles, transactions, positions
-  et valorisation avec provenance.
+- **Marchés** : recherche de n'importe quel instrument coté (Yahoo Finance / Finnhub pour les
+  actions et ETF, CoinGecko pour les crypto-actifs), fiche avec cotation datée et sourcée,
+  chandeliers OHLCV, SMA/EMA/Bollinger/RSI/MACD/ATR/stochastique/OBV paramétrables, liste de
+  suivi et **ajout au portefeuille en un clic** (enregistrement d'un achat — jamais un ordre).
+- **Portefeuilles** : transactions immuables (annulation auditée), positions FIFO, coût de revient
+  et plus-values latentes, valorisation dans la devise de référence avec taux de change BCE datés,
+  **import des exports Trade Republic et Revolut** (format reconnu automatiquement, titres retrouvés
+  par ISIN) ou de tout CSV (aperçu, mapping, erreurs par ligne, déduplication), historique,
+  allocation, TWR/MWR.
+- **Analyse** : statistiques de rendement et de risque (volatilité, Sharpe, Sortino, Calmar,
+  asymétrie, kurtosis), drawdown, VaR/CVaR (historique, gaussienne, Cornish-Fisher), MEDAF (bêta,
+  alpha, R²), matrice de corrélation, frontière efficiente de Markowitz, simulations de Monte
+  Carlo — chaque mesure avec méthode, période et limites.
+- **Actualités & événements** : actualités par société récupérées automatiquement (Finnhub, clé
+  gratuite) pour chaque action ou ETF suivi, plus flux RSS/JSON/ICS configurables ; chronologie et
+  calendrier, dédoublonnage et scoring.
+- **Aide** : 17 articles sur la théorie derrière chaque chiffre (valorisation, FIFO, TWR/MWR,
+  ratios, VaR, MEDAF, Markowitz, efficience des marchés, indicateurs techniques, walk-forward,
+  métamodèles…), consultables depuis chaque écran.
+- **Prédiction (expérimental, désactivé par défaut)** : entraînement d'un métamodèle (stacking de
+  ridge, forêt aléatoire, gradient boosting, benchmark naïf) validé en walk-forward chronologique,
+  avec intervalles calibrés et métriques hors échantillon — outil pédagogique, jamais un signal.
 
 **Consultation et analyse uniquement. Aucun ordre financier, aucune recommandation personnalisée,
 aucune exécution.**
@@ -16,44 +32,72 @@ aucune exécution.**
 ## Structure
 
 ```
-backend/               API FastAPI du module Actualités & Événements (adaptateurs, pipeline, scoring)
-frontend/               Interface React/TypeScript du module Actualités & Événements
-portfolio-backend/      API FastAPI du module Portefeuille (auth, portefeuilles, transactions, valorisation)
-portfolio-frontend/     Interface React/TypeScript du module Portefeuille
-infra/postgres-init/    Script de création de la base `nexora_portfolio` au premier démarrage
-specs/                  Spécifications produit de référence (non modifiées par ces implémentations)
+backend/     API FastAPI + worker (marché, portefeuille, analyse, actualités, prédiction, aide)
+frontend/    Interface React/TypeScript unique, servie par nginx qui proxifie /api (même origine)
+specs/       Spécifications produit de référence
 ```
-
-Les deux frontends sont volontairement séparés pour l'instant (chaque module a été livré et testé
-indépendamment) ; une intégration UI unifiée (actualités affichées dans la page d'un instrument du
-dashboard) est un travail ultérieur, une fois les deux modules stables.
 
 ## Démarrage rapide
 
 ```bash
-cp .env.example .env
+cp .env.example .env          # ajustez au besoin ; jamais commité
 docker compose up --build
 ```
 
-- Actualités & Événements — API : http://localhost:8000 (`/docs`, `/health`, `/metrics`) · Frontend :
-  http://localhost:5173
-- Portefeuille — API : http://localhost:8001 (`/docs`, `/health`, `/metrics`) · Frontend :
-  http://localhost:5174
-- PostgreSQL : localhost:5432 (bases `nexora` et `nexora_portfolio`, voir `infra/postgres-init/`)
+- Application : http://localhost:5173 (le premier compte créé est administrateur)
+- API : http://localhost:8000/docs · santé `/health` · métriques `/metrics` (worker : :9100)
+- PostgreSQL : localhost:5432
 
-Pour voir le pipeline Actualités & Événements fonctionner de bout en bout sans aucune source réelle :
+Démo entièrement hors ligne (instrument synthétique, cotations et actualités fictives servies
+localement, aucun appel externe) :
 
 ```bash
-SEED_DEMO_DATA=1 docker compose --profile demo up --build
-docker compose exec api python -m app.worker.cli sync-all
+SEED_DEMO_DATA=1 NEXORA_MARKET_EQUITY_PROVIDER=fixture NEXORA_MARKET_CRYPTO_PROVIDER=fixture \
+NEXORA_MARKET_FX_PROVIDER=fixture docker compose --profile demo up --build
 ```
 
-Détails de configuration : [`backend/README.md`](backend/README.md) (Actualités & Événements) et
-[`portfolio-backend/README.md`](portfolio-backend/README.md) (Portefeuille).
+> **Migration depuis les versions précédentes** : les deux services séparés (`backend` Actualités,
+> `portfolio-backend` Portefeuille) et leurs bases `nexora` / `nexora_portfolio` sont remplacés par
+> ce schéma unifié, sans chemin de migration automatique. Repartez d'un volume vide
+> (`docker compose down -v`) puis relancez.
+
+## Suivre un compte Trade Republic ou Revolut
+
+Ces courtiers n'offrent pas d'API de lecture pour un compte personnel ; les « connecteurs » non
+officiels exigent vos identifiants et votre 2FA et donnent un accès complet au compte, ce que
+`specs/PORTFOLIO_IMPORTS.md` et `specs/SECURITY.md` excluent. La voie retenue est l'export de
+l'application (Revolut : relevé du compte titres en CSV ; Trade Republic : export des transactions
+en CSV), importé dans NeXora : le format est reconnu d'après les colonnes, les types d'opération
+sont convertis, les titres sont retrouvés par ISIN ou symbole, chaque ligne est vérifiée et rien
+n'est écrit avant confirmation. Un nouvel export importé plus tard ne crée pas de doublons.
+
+## Données de marché et respect des fournisseurs
+
+Les fournisseurs sont interchangeables et configurés par variables d'environnement (voir
+`.env.example` et `specs/DATA_SOURCES.md`). L'application est conçue pour ne jamais « spammer » une
+API : cache-first (une cotation rafraîchie au plus toutes les 15 minutes), budget local de
+requêtes par fournisseur, disjoncteur qui met en pause puis désactive une source défaillante,
+rafraîchissement en arrière-plan limité aux instruments détenus ou suivis. Les tests n'effectuent
+aucun appel réseau. Chaque donnée affichée porte sa source, son horodatage, son âge et sa note de
+licence ; une donnée manquante est signalée, jamais inventée.
+
+## Développement
+
+```bash
+cd backend && python3 -m venv .venv && source .venv/bin/activate && pip install -e ".[dev]"
+alembic upgrade head && uvicorn app.api.main:app --reload --port 8000
+cd ../frontend && npm ci && npm run dev      # http://localhost:5173, proxy /api → :8000
+```
+
+CI (`.github/workflows/ci.yml`) : lint + tests unitaires, intégration + couverture (≥ 85 %),
+migrations depuis zéro et retour arrière sur PostgreSQL, scans (gitleaks, bandit, pip-audit),
+build Docker reproductible, typecheck + build du frontend. Détails : [`backend/README.md`](backend/README.md).
 
 ## Avertissement
 
-Les informations affichées proviennent de fournisseurs configurés ou de saisies manuelles ; elles
-peuvent être incomplètes, différées, estimées ou temporairement indisponibles — toujours signalées
-comme telles, jamais inventées. Cet outil fournit de l'information à titre indicatif — il ne
-constitue ni conseil financier, ni recommandation, ni service d'exécution.
+Les cotations proviennent de fournisseurs tiers gratuits (usage personnel, données souvent
+différées, pas de garantie de disponibilité ni de redistribution) ou de saisies manuelles. Les
+valorisations d'actifs privés sont des estimations. Les analyses décrivent le passé ; les
+simulations et le module de prédiction illustrent des hypothèses. Cet outil fournit de
+l'information et de l'organisation — il ne constitue ni conseil financier, fiscal ou juridique,
+ni service d'exécution.

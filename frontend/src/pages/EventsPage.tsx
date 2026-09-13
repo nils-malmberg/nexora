@@ -14,7 +14,7 @@ const STATUSES = [
   { value: "unknown", label: "Inconnu" },
 ];
 
-export function EventsPage({ assetId }: { assetId: string }) {
+export function EventsPage({ instrumentId }: { instrumentId?: string }) {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [status, setStatus] = useState("");
   const [timezone, setTimezone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
@@ -27,11 +27,11 @@ export function EventsPage({ assetId }: { assetId: string }) {
   useEffect(() => {
     setLoading(true);
     setError(null);
-    listUpcomingEvents({ assetId, status: status || undefined, tz: timezone })
+    listUpcomingEvents({ instrumentId, status: status || undefined, tz: timezone })
       .then(setEvents)
       .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Erreur de chargement"))
       .finally(() => setLoading(false));
-  }, [assetId, status, timezone]);
+  }, [instrumentId, status, timezone]);
 
   const visibleEvents = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -44,7 +44,7 @@ export function EventsPage({ assetId }: { assetId: string }) {
   const hiddenCount = events.filter((e) => dismissed.has(e.id)).length;
 
   function handleExport() {
-    exportAsJson(`nexora-evenements-${assetId}.json`, visibleEvents);
+    exportAsJson(`nexora-evenements-${instrumentId ?? "tous"}.json`, visibleEvents);
   }
 
   return (
@@ -92,14 +92,14 @@ export function EventsPage({ assetId }: { assetId: string }) {
           </label>
         )}
       </div>
-      <p id="tz-hint" className="empty-state" style={{ display: "none" }}>
+      <p id="tz-hint" className="visually-hidden">
         Nom de fuseau IANA, ex. Europe/Paris
       </p>
 
       {loading && <p className="loading-state">Chargement…</p>}
       {error && <p className="error-state">{error}</p>}
       {!loading && !error && visibleEvents.length === 0 && (
-        <p className="empty-state">Aucun événement à venir pour cet actif.</p>
+        <p className="empty-state">Aucun événement à venir (aucune source de calendrier configurée ne couvre cet instrument).</p>
       )}
       {visibleEvents.map((event) => (
         <EventCard

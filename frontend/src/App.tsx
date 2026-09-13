@@ -1,82 +1,130 @@
 import { useEffect, useState } from "react";
-import { ApiError, listAssets } from "./api/client";
-import { AssetPicker } from "./components/AssetPicker";
-import { ProviderStatusBanner } from "./components/ProviderStatusBanner";
-import { NewsPage } from "./pages/NewsPage";
-import { TimelinePage } from "./pages/TimelinePage";
-import { EventsPage } from "./pages/EventsPage";
-import type { Asset } from "./types";
+import { logout as apiLogout, me } from "./api/client";
+import { setCsrfToken } from "./authStore";
+import { AdminPage } from "./pages/AdminPage";
+import { AnalysisPage } from "./pages/AnalysisPage";
+import { AuthPage } from "./pages/AuthPage";
+import { DashboardPage } from "./pages/DashboardPage";
+import { HelpPage } from "./pages/HelpPage";
+import { InstrumentPage } from "./pages/InstrumentPage";
+import { InstrumentsPage } from "./pages/InstrumentsPage";
+import { MarketsPage } from "./pages/MarketsPage";
+import { NewsHubPage } from "./pages/NewsHubPage";
+import { PortfoliosPage } from "./pages/PortfoliosPage";
+import { PredictionPage } from "./pages/PredictionPage";
+import { SettingsPage } from "./pages/SettingsPage";
+import { HeaderSearch } from "./components/HeaderSearch";
+import { href, useRoute } from "./router";
+import type { AuthResponse, User } from "./types";
 
-type Tab = "news" | "timeline" | "events";
-
-const TABS: { id: Tab; label: string }[] = [
-  { id: "news", label: "Actualités récentes" },
-  { id: "timeline", label: "Chronologie" },
-  { id: "events", label: "Événements à venir" },
+const NAV: { id: string; label: string }[] = [
+  { id: "dashboard", label: "Tableau de bord" },
+  { id: "markets", label: "Marchés" },
+  { id: "portfolios", label: "Portefeuilles" },
+  { id: "analysis", label: "Analyse" },
+  { id: "news", label: "Actualités" },
+  { id: "prediction", label: "Prédiction" },
+  { id: "help", label: "Aide" },
+  { id: "settings", label: "Paramètres" },
 ];
 
 export function App() {
-  const [assets, setAssets] = useState<Asset[]>([]);
-  const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<Tab>("news");
-  const [error, setError] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [checkingSession, setCheckingSession] = useState(true);
+  const route = useRoute();
 
   useEffect(() => {
-    listAssets()
-      .then((list) => {
-        setAssets(list);
-        if (list.length > 0) setSelectedAssetId(list[0].id);
+    me()
+      .then((auth) => {
+        setCsrfToken(auth.csrf_token);
+        setUser(auth.user);
       })
-      .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Impossible de charger les actifs"));
+      .catch(() => {
+        // No valid session: stay on the auth screen.
+      })
+      .finally(() => setCheckingSession(false));
   }, []);
 
+  function handleAuthenticated(auth: AuthResponse) {
+    setCsrfToken(auth.csrf_token);
+    setUser(auth.user);
+  }
+
+  async function handleLogout() {
+    try {
+      await apiLogout();
+    } finally {
+      setCsrfToken(null);
+      setUser(null);
+    }
+  }
+
+  if (checkingSession) return <p className="loading-state">Chargement…</p>;
+  if (!user) return <AuthPage onAuthenticated={handleAuthenticated} />;
+
+  const section = route.path[0] || "dashboard";
+  const arg = route.path[1];
+
+  let page: JSX.Element;
+  switch (section) {
+    case "markets":
+      page = arg ? <InstrumentPage key={arg} instrumentId={arg} initialTab={route.query.tab} /> : <MarketsPage />;
+      break;
+    case "portfolios":
+      page = <PortfoliosPage selectedId={arg} initialTab={route.query.tab} />;
+      break;
+    case "instruments":
+      page = <InstrumentsPage />;
+      break;
+    case "analysis":
+      page = <AnalysisPage initialPortfolioId={route.query.portfolio} initialInstrumentId={route.query.instrument} />;
+      break;
+    case "news":
+      page = <NewsHubPage initialInstrumentId={route.query.instrument} />;
+      break;
+    case "prediction":
+      page = <PredictionPage initialInstrumentId={route.query.instrument} />;
+      break;
+    case "help":
+      page = <HelpPage slug={arg} />;
+      break;
+    case "settings":
+      page = <SettingsPage user={user} onAccountDeleted={() => setUser(null)} onUserUpdated={setUser} />;
+      break;
+    case "admin":
+      page = user.is_admin ? <AdminPage /> : <p className="error-state">Réservé aux administrateurs.</p>;
+      break;
+    default:
+      page = <DashboardPage user={user} />;
+  }
+
   return (
-    <>
+    <div className="app-shell">
       <header className="app-header">
-        <h1>Actualités et événements</h1>
-        <p>Faits, synthèses et estimations sourcés — outil d'information, pas un conseil financier.</p>
-      </header>
-
-      <p className="disclaimer">
-        Les informations affichées proviennent de sources tierces (flux RSS/Atom, API et calendriers officiels
-        configurés). Elles peuvent être incomplètes ou différées ; consultez toujours la source d'origine avant
-        toute décision.
-      </p>
-
-      <ProviderStatusBanner />
-
-      {error && <p className="error-state">{error}</p>}
-
-      <AssetPicker assets={assets} selectedAssetId={selectedAssetId} onSelect={setSelectedAssetId} />
-
-      {selectedAssetId && (
-        <>
-          <div role="tablist" aria-label="Vues du module actualités">
-            {TABS.map((tab) => (
-              <button
-                key={tab.id}
-                role="tab"
-                aria-selected={activeTab === tab.id}
-                aria-controls={`panel-${tab.id}`}
-                id={`tab-${tab.id}`}
-                onClick={() => setActiveTab(tab.id)}
-              >
-                {tab.label}
-              </button>
+        <div className="app-header-row">
+          <a href={href("dashboard")} className="brand">
+            <span className="brand-mark">N</span> NeXora
+          </a>
+          <nav aria-label="Navigation principale">
+            {NAV.map((item) => (
+              <a key={item.id} href={href(item.id)} aria-current={section === item.id ? "page" : undefined}>
+                {item.label}
+              </a>
             ))}
+          </nav>
+          <div className="header-user">
+            <HeaderSearch />
+            <span className="muted">{user.display_name || user.email}</span>
+            <button type="button" className="link-button" onClick={handleLogout}>
+              Se déconnecter
+            </button>
           </div>
-
-          <div role="tabpanel" id={`panel-${activeTab}`} aria-labelledby={`tab-${activeTab}`}>
-            {activeTab === "news" && <NewsPage assetId={selectedAssetId} />}
-            {activeTab === "timeline" && <TimelinePage assetId={selectedAssetId} />}
-            {activeTab === "events" && <EventsPage assetId={selectedAssetId} />}
-          </div>
-        </>
-      )}
-
-      {!selectedAssetId && assets.length === 0 && !error && (
-        <p className="empty-state">Aucun actif configuré pour le moment.</p>
-      )}
-    </>
+        </div>
+      </header>
+      <main id="main">{page}</main>
+      <footer className="app-footer">
+        Consultation et analyse uniquement : aucun ordre n'est passé, aucune recommandation personnalisée n'est donnée. Les cotations peuvent être différées, incomplètes ou indisponibles et sont toujours affichées avec leur source et leur âge. <a href={href("help")}>Aide</a>
+      </footer>
+    </div>
   );
 }

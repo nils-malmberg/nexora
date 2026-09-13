@@ -1,0 +1,50 @@
+{
+  "DEMO": {
+    "name": "Demo SA",
+    "asset_class": "action",
+    "currency": "EUR",
+    "exchange": "XPAR",
+    "isin": "FR0000000001",
+    "price": 42.5,
+    "as_of": "2026-01-15T16:00:00+00:00",
+    "history": [
+      {"as_of": "2026-01-12T00:00:00+00:00", "open": 39.5, "high": 40.2, "low": 39.1, "close": 40.0, "volume": 12000},
+      {"as_of": "2026-01-13T00:00:00+00:00", "open": 40.0, "high": 40.8, "low": 39.7, "close": 40.0, "volume": 15000},
+      {"as_of": "2026-01-14T00:00:00+00:00", "open": 40.1, "high": 41.5, "low": 40.0, "close": 41.2, "volume": 18000},
+      {"as_of": "2026-01-15T00:00:00+00:00", "open": 41.2, "high": 42.9, "low": 41.0, "close": 42.5, "volume": 21000}
+    ]
+  },
+  "USDEMO": {
+    "name": "US Demo Inc",
+    "asset_class": "action",
+    "currency": "USD",
+    "exchange": "NMS",
+    "isin": "US0000000002",
+    "price": 100.0,
+    "as_of": "2026-01-15T21:00:00+00:00",
+    "history": [
+      {"as_of": "2026-01-14T00:00:00+00:00", "open": 98.0, "high": 99.5, "low": 97.5, "close": 99.0, "volume": 500000},
+      {"as_of": "2026-01-15T00:00:00+00:00", "open": 99.0, "high": 101.0, "low": 98.5, "close": 100.0, "volume": 520000}
+    ]
+  },
+  "bitcoin-demo": {
+    "name": "Bitcoin (demo)",
+    "asset_class": "crypto",
+    "currency": "USD",
+    "exchange": "CoinGecko",
+    "price": 65000.0,
+    "as_of": "2026-01-15T12:00:00+00:00",
+    "history": [
+      {"as_of": "2026-01-13T00:00:00+00:00", "close": 63000.0, "volume": 25000000000},
+      {"as_of": "2026-01-14T00:00:00+00:00", "close": 64000.0, "volume": 26000000000},
+      {"as_of": "2026-01-15T00:00:00+00:00", "close": 65000.0, "volume": 24000000000}
+    ]
+  },
+  "NOQUOTE": {
+    "name": "No Quote Corp",
+    "asset_class": "action",
+    "currency": "EUR",
+    "exchange": "XPAR",
+    "history": []
+  }
+}
