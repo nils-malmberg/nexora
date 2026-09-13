@@ -19,9 +19,12 @@ import {
   TRANSACTION_TYPE_LABELS,
 } from "../types";
 import type { Instrument, Portfolio, Position, Transaction, TransactionType, Valuation } from "../types";
-import { formatAmount, formatDateTime, formatQuantity } from "../format";
+import { formatAmount, formatDateTime, formatPct, formatQuantity } from "../format";
 import { ImportWizard } from "../components/ImportWizard";
 import { AnalyticsSection } from "../components/AnalyticsSection";
+import { InstrumentSearch } from "../components/InstrumentSearch";
+import { QuantPanel } from "../components/QuantPanel";
+import { href } from "../router";
 
 const INSTRUMENT_REQUIRED_TYPES: TransactionType[] = ["achat", "vente", "dividende", "coupon", "split"];
 
@@ -43,6 +46,7 @@ export function PortfolioDetailPage({
   const [error, setError] = useState<string | null>(null);
   const [renaming, setRenaming] = useState(false);
   const [newName, setNewName] = useState(portfolio.name);
+  const [tab, setTab] = useState<"positions" | "transactions" | "import" | "analytics" | "quant">("positions");
   // AnalyticsSection fetches its own data independently (history/allocation/
   // risk/performance) and only depends on portfolio.id, which never changes
   // here - without this, adding a transaction or a price wouldn't ever
@@ -107,24 +111,51 @@ export function PortfolioDetailPage({
 
       {valuation && <ValuationSummary valuation={valuation} />}
 
-      <h3>Positions</h3>
-      <PositionsTable positions={positions} />
+      <div role="tablist" className="subtabs" aria-label="Sections du portefeuille">
+        {(
+          [
+            ["positions", "Positions"],
+            ["transactions", "Transactions"],
+            ["import", "Import CSV"],
+            ["analytics", "Historique & performance"],
+            ["quant", "Analyse quantitative"],
+          ] as const
+        ).map(([id, label]) => (
+          <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>
+            {label}
+          </button>
+        ))}
+      </div>
 
-      <h3>Nouvelle transaction</h3>
-      <TransactionForm
-        portfolioId={portfolio.id}
-        instruments={instruments}
-        onCreated={reload}
-        onInstrumentCreated={(i) => setInstruments((prev) => [...prev, i])}
-        onError={(msg) => setError(msg)}
-      />
+      {tab === "positions" && (
+        <>
+          <PositionsTable positions={positions} baseCurrency={portfolio.base_currency} />
+          <h3>Ajouter un instrument coté</h3>
+          <p className="muted">Recherchez un titre : sa fiche s'ouvre avec le bouton « Ajouter au portefeuille ».</p>
+          <InstrumentSearch />
+        </>
+      )}
 
-      <h3>Transactions</h3>
-      <TransactionsList transactions={transactions} instruments={instruments} onReverse={handleReverse} />
+      {tab === "transactions" && (
+        <>
+          <h3>Nouvelle transaction</h3>
+          <TransactionForm
+            portfolioId={portfolio.id}
+            instruments={instruments}
+            onCreated={reload}
+            onInstrumentCreated={(i) => setInstruments((prev) => [...prev, i])}
+            onError={(msg) => setError(msg)}
+          />
+          <h3>Transactions</h3>
+          <TransactionsList transactions={transactions} instruments={instruments} onReverse={handleReverse} />
+        </>
+      )}
 
-      <ImportWizard portfolioId={portfolio.id} onCommitted={reload} />
+      {tab === "import" && <ImportWizard portfolioId={portfolio.id} onCommitted={reload} />}
 
-      <AnalyticsSection portfolioId={portfolio.id} instruments={instruments} refreshKey={analyticsRefreshKey} />
+      {tab === "analytics" && <AnalyticsSection portfolioId={portfolio.id} instruments={instruments} refreshKey={analyticsRefreshKey} />}
+
+      {tab === "quant" && <QuantPanel subject={{ portfolio_id: portfolio.id }} currency={portfolio.base_currency} label={portfolio.name} />}
     </div>
   );
 }
@@ -151,15 +182,21 @@ function ValuationSummary({ valuation }: { valuation: Valuation }) {
       )}
       {valuation.unconverted_currencies.length > 0 && (
         <p className="prediction-warning" role="note">
-          Devises non converties (aucun taux de change configuré), exclues du total :{" "}
-          {valuation.unconverted_currencies.join(", ")}.
+          Devises sans taux de change connu, exclues du total : {valuation.unconverted_currencies.join(", ")}.
         </p>
       )}
+      {valuation.fx_rates.length > 0 && (
+        <p className="muted">
+          Taux utilisés :{" "}
+          {valuation.fx_rates.map((r) => `1 ${r.currency} = ${Number(r.rate).toFixed(4)} ${valuation.base_currency} (${r.source}, ${formatDateTime(r.rate_as_of)})`).join(" · ")}
+        </p>
+      )}
+      <p className="muted">Valorisé le {formatDateTime(valuation.as_of)}</p>
     </div>
   );
 }
 
-function PositionsTable({ positions }: { positions: Position[] }) {
+function PositionsTable({ positions, baseCurrency }: { positions: Position[]; baseCurrency: string }) {
   if (positions.length === 0) return <p className="empty-state">Aucune position ouverte.</p>;
   return (
     <div className="table-scroll">
@@ -171,30 +208,47 @@ function PositionsTable({ positions }: { positions: Position[] }) {
             <th>Coût moyen</th>
             <th>Dernier prix</th>
             <th>Valeur de marché</th>
+            <th>Valeur ({baseCurrency})</th>
+            <th>Plus/moins-value latente</th>
             <th>Fraîcheur</th>
           </tr>
         </thead>
         <tbody>
-          {positions.map((p) => (
-            <tr key={p.instrument_id} className={p.freshness === "manquant" ? "row-warning" : undefined}>
-              <td>
-                {p.symbol} <span className="muted">{p.name}</span>
-              </td>
-              <td>{formatQuantity(p.quantity)}</td>
-              <td>{formatAmount(p.average_unit_cost, p.currency)}</td>
-              <td>{p.price ? formatAmount(p.price, p.currency) : "—"}</td>
-              <td>{p.market_value ? formatAmount(p.market_value, p.currency) : "—"}</td>
-              <td>
-                <span className={`badge freshness-${p.freshness}`}>{FRESHNESS_LABELS[p.freshness]}</span>
-                {!p.matches_base_currency && <span className="badge">devise différente</span>}
-              </td>
-            </tr>
-          ))}
+          {positions.map((p) => {
+            const pnl = p.unrealized_pnl !== null ? Number(p.unrealized_pnl) : null;
+            const pnlPct = pnl !== null && Number(p.cost_basis) > 0 ? pnl / Number(p.cost_basis) : null;
+            return (
+              <tr key={p.instrument_id} className={p.freshness === "manquant" ? "row-warning" : undefined}>
+                <td>
+                  <a href={href("markets", p.instrument_id)}>{p.symbol}</a> <span className="muted">{p.name}</span>
+                </td>
+                <td>{formatQuantity(p.quantity)}</td>
+                <td>{formatAmount(p.average_unit_cost, p.cost_currency)}</td>
+                <td>
+                  {p.price ? formatAmount(p.price, p.currency) : "—"}
+                  {p.price_source && <span className="muted"> ({p.price_source})</span>}
+                </td>
+                <td>{p.market_value ? formatAmount(p.market_value, p.currency) : "—"}</td>
+                <td>
+                  {p.market_value_base ? formatAmount(p.market_value_base, baseCurrency) : "—"}
+                  {p.fx_rate && <span className="muted"> @ {Number(p.fx_rate).toFixed(4)}</span>}
+                </td>
+                <td className={pnl === null ? undefined : pnl >= 0 ? "delta-up" : "delta-down"}>
+                  {pnl === null ? "—" : `${formatAmount(pnl, p.currency)}${pnlPct !== null ? ` (${formatPct(pnlPct)})` : ""}`}
+                </td>
+                <td>
+                  <span className={`badge freshness-${p.freshness}`}>{FRESHNESS_LABELS[p.freshness]}</span>
+                  {!p.matches_base_currency && !p.fx_rate && <span className="badge">non converti</span>}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
   );
 }
+
 
 function TransactionForm({
   portfolioId,
@@ -286,7 +340,7 @@ function TransactionForm({
             ))}
           </select>
           <button type="button" className="link-button" onClick={() => setShowNewInstrument((v) => !v)}>
-            {showNewInstrument ? "annuler" : "+ nouvel instrument"}
+            {showNewInstrument ? "annuler" : "+ instrument privé / manuel"}
           </button>
         </label>
       )}
@@ -371,8 +425,8 @@ function TransactionsList({
           {transactions.map((tx) => (
             <tr key={tx.id} className={tx.reversed_at ? "row-reversed" : undefined}>
               <td>{formatDateTime(tx.trade_date)}</td>
-              <td>{TRANSACTION_TYPE_LABELS[tx.type]}</td>
-              <td>{tx.instrument_id ? instrumentById.get(tx.instrument_id)?.symbol ?? tx.instrument_id : "—"}</td>
+              <td>{(TRANSACTION_TYPE_LABELS as Record<string, string>)[tx.type] ?? tx.type}</td>
+              <td>{tx.instrument_id ? <a href={href("markets", tx.instrument_id)}>{instrumentById.get(tx.instrument_id)?.symbol ?? tx.instrument_id}</a> : "—"}</td>
               <td>{formatQuantity(tx.quantity)}</td>
               <td>{formatAmount(tx.unit_price, tx.currency)}</td>
               <td>{formatAmount(tx.fees, tx.currency)}</td>

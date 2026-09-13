@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ApiError, listAssetNews } from "../api/client";
+import { ApiError, listInstrumentNews } from "../api/client";
 import { NewsCard } from "../components/NewsCard";
 import { CATEGORIES, CATEGORY_LABELS } from "../types";
 import type { NewsItem } from "../types";
@@ -8,7 +8,7 @@ import { exportAsJson } from "../export";
 
 const SEARCH_DEBOUNCE_MS = 350;
 
-export function NewsPage({ assetId }: { assetId: string }) {
+export function NewsPage({ instrumentId }: { instrumentId: string }) {
   const [items, setItems] = useState<NewsItem[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [category, setCategory] = useState("");
@@ -28,18 +28,18 @@ export function NewsPage({ assetId }: { assetId: string }) {
   useEffect(() => {
     setLoading(true);
     setError(null);
-    listAssetNews(assetId, { category: category || undefined, kind: kind || undefined, q: q || undefined })
+    listInstrumentNews(instrumentId, { category: category || undefined, kind: kind || undefined, q: q || undefined })
       .then((page) => {
         setItems(page.items);
         setNextCursor(page.next_cursor);
       })
       .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Erreur de chargement"))
       .finally(() => setLoading(false));
-  }, [assetId, category, kind, q]);
+  }, [instrumentId, category, kind, q]);
 
   async function loadMore() {
     if (!nextCursor) return;
-    const page = await listAssetNews(assetId, {
+    const page = await listInstrumentNews(instrumentId, {
       category: category || undefined,
       kind: kind || undefined,
       q: q || undefined,
@@ -56,7 +56,7 @@ export function NewsPage({ assetId }: { assetId: string }) {
   const hiddenCount = items.length - items.filter((item) => !dismissed.has(item.id)).length;
 
   function handleExport() {
-    exportAsJson(`nexora-actualites-${assetId}.json`, visibleItems);
+    exportAsJson(`nexora-actualites-${instrumentId}.json`, visibleItems);
   }
 
   return (
@@ -109,7 +109,7 @@ export function NewsPage({ assetId }: { assetId: string }) {
       {loading && <p className="loading-state">Chargement…</p>}
       {error && <p className="error-state">{error}</p>}
       {!loading && !error && visibleItems.length === 0 && (
-        <p className="empty-state">Aucune actualité récente pour cet actif avec ces filtres.</p>
+        <p className="empty-state">Aucune actualité récente pour cet instrument avec ces filtres (aucune source configurée ne le couvre encore ?).</p>
       )}
       {visibleItems.map((item) => (
         <NewsCard

@@ -1,11 +1,16 @@
 import { useEffect, useState } from "react";
 import { ApiError, createPortfolio, deletePortfolio, listPortfolios } from "../api/client";
+import { href, navigate } from "../router";
 import type { Portfolio } from "../types";
 import { PortfolioDetailPage } from "./PortfolioDetailPage";
 
-export function PortfoliosPage() {
+export function PortfoliosPage({ selectedId: routeSelectedId }: { selectedId?: string }) {
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedIdState] = useState<string | null>(routeSelectedId ?? null);
+  const setSelectedId = (id: string | null) => {
+    setSelectedIdState(id);
+    navigate("portfolios", id ?? undefined);
+  };
   const [name, setName] = useState("");
   const [baseCurrency, setBaseCurrency] = useState("EUR");
   const [loading, setLoading] = useState(true);
@@ -22,7 +27,11 @@ export function PortfoliosPage() {
       .finally(() => setLoading(false));
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(reload, []);
+  useEffect(() => {
+    if (routeSelectedId) setSelectedIdState(routeSelectedId);
+  }, [routeSelectedId]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -79,6 +88,9 @@ export function PortfoliosPage() {
               Créer un portefeuille
             </button>
           </form>
+          <p className="muted">
+            <a href={href("instruments")}>Actifs privés et instruments manuels</a>
+          </p>
         </aside>
         <div className="portfolio-main">
           {selectedId ? (

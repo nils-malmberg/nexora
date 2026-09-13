@@ -1,6 +1,6 @@
 import type { NewsItem } from "../types";
 import { CATEGORY_LABELS } from "../types";
-import { ConfidenceBadge, FreshnessBadge, KindBadge, StaleBadge } from "./Badges";
+import { CollectionFreshnessBadge, ConfidenceBadge, KindBadge, StaleBadge } from "./Badges";
 import { formatDateTime } from "../format";
 
 export function NewsCard({
@@ -20,7 +20,7 @@ export function NewsCard({
       <div className="card-header">
         <KindBadge kind={item.kind} />
         <span className="badge">{CATEGORY_LABELS[item.category] ?? item.category}</span>
-        <FreshnessBadge freshness={item.freshness_at_collection} />
+        <CollectionFreshnessBadge freshness={item.freshness_at_collection} />
         <ConfidenceBadge confidence={item.confidence} />
         <StaleBadge stale={item.stale} />
       </div>
@@ -41,13 +41,10 @@ export function NewsCard({
       </div>
       {(item.duplicate_of.length > 0 || item.corroborated_by.length > 0) && (
         <div className="related-list">
-          {item.corroborated_by.length > 0 && (
-            <div>Corroboré par {item.corroborated_by.length} source(s) indépendante(s).</div>
-          )}
+          {item.corroborated_by.length > 0 && <div>Corroboré par {item.corroborated_by.length} source(s) indépendante(s).</div>}
           {item.duplicate_of.length > 0 && <div>Doublon probable d'un autre article déjà listé.</div>}
         </div>
       )}
-
       <details className="details-toggle">
         <summary>Détails</summary>
         <dl className="details-grid">
@@ -67,18 +64,19 @@ export function NewsCard({
           <dd>{formatDateTime(item.updated_at)}</dd>
         </dl>
       </details>
-
-      <div className="card-actions">
-        {dismissed ? (
-          <button type="button" onClick={onRestore} className="link-button">
-            Réafficher
-          </button>
-        ) : (
-          <button type="button" onClick={onDismiss} className="link-button">
-            Masquer localement
-          </button>
-        )}
-      </div>
+      {(onDismiss || onRestore) && (
+        <div className="card-actions">
+          {dismissed ? (
+            <button type="button" onClick={onRestore} className="link-button">
+              Réafficher
+            </button>
+          ) : (
+            <button type="button" onClick={onDismiss} className="link-button">
+              Masquer localement
+            </button>
+          )}
+        </div>
+      )}
     </article>
   );
 }

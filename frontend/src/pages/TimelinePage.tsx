@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ApiError, getAssetTimeline } from "../api/client";
+import { ApiError, getInstrumentTimeline } from "../api/client";
 import { NewsCard } from "../components/NewsCard";
 import { EventCard } from "../components/EventCard";
 import { CATEGORIES, CATEGORY_LABELS } from "../types";
@@ -22,7 +22,7 @@ function entryLabel(entry: TimelineEntry): string {
   return entry.news_item?.title ?? entry.event?.type ?? "";
 }
 
-export function TimelinePage({ assetId }: { assetId: string }) {
+export function TimelinePage({ instrumentId }: { instrumentId: string }) {
   const [entries, setEntries] = useState<TimelineEntry[]>([]);
   const [granularity, setGranularity] = useState("month");
   const [category, setCategory] = useState("");
@@ -35,11 +35,11 @@ export function TimelinePage({ assetId }: { assetId: string }) {
   useEffect(() => {
     setLoading(true);
     setError(null);
-    getAssetTimeline(assetId, { granularity, category: category || undefined })
+    getInstrumentTimeline(instrumentId, { granularity, category: category || undefined })
       .then(setEntries)
       .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Erreur de chargement"))
       .finally(() => setLoading(false));
-  }, [assetId, granularity, category]);
+  }, [instrumentId, granularity, category]);
 
   // Entries are already fully loaded (no cursor pagination on this endpoint -
   // see backend/README.md "Limites connues"), so text search filters
@@ -56,7 +56,7 @@ export function TimelinePage({ assetId }: { assetId: string }) {
 
   function handleExport() {
     exportAsJson(
-      `nexora-chronologie-${assetId}.json`,
+      `nexora-chronologie-${instrumentId}.json`,
       visibleEntries.map((e) => e.news_item ?? e.event),
     );
   }
