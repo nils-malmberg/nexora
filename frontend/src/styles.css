@@ -1172,3 +1172,104 @@ code {
   padding: 1px 5px;
   border-radius: 4px;
 }
+
+/* --- notifications bell, alerts, comparison chips ------------------------- */
+
+.bell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  font-size: 1.1rem;
+  padding: 0 0.25rem;
+}
+
+.bell-count {
+  position: absolute;
+  top: -0.45rem;
+  right: -0.35rem;
+  min-width: 1.1rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: #b42318;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1.1rem;
+  text-align: center;
+}
+
+.notification-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1.5rem;
+}
+
+.notification {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  border-left: 4px solid #1d4ed8;
+  background: var(--surface, #fff);
+  border-radius: 6px;
+  margin-bottom: 0.5rem;
+}
+
+.notification.read {
+  border-left-color: #cbd5e1;
+  opacity: 0.8;
+}
+
+.notification p {
+  margin: 0.25rem 0;
+}
+
+.notification-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  align-items: flex-end;
+  white-space: nowrap;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.5rem 0;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.6rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.chip.active {
+  border-color: #1d4ed8;
+  background: #eff6ff;
+}
+
+.chip input {
+  margin: 0;
+}
+
+.consolidated .big-number {
+  font-size: 1.8rem;
+}
+
+@media (max-width: 640px) {
+  .notification {
+    flex-direction: column;
+  }
+  .notification-actions {
+    flex-direction: row;
+    align-items: center;
+  }
+}

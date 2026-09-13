@@ -11,10 +11,12 @@ import {
 } from "../api/client";
 import { CandlestickChart } from "../charts/CandlestickChart";
 import { LineChart, type ChartBand, type ChartPoint, type ChartSeries } from "../charts/LineChart";
+import { AlertForm } from "../components/AlertForm";
 import { AssetClassBadge, FreshnessBadge, QuoteStatusBadge } from "../components/Badges";
 import { EducationNote } from "../components/EducationNote";
 import { QuantPanel } from "../components/QuantPanel";
 import { QuickBuyDialog } from "../components/QuickBuyDialog";
+import { StrategyStudyPanel } from "../components/StrategyStudyPanel";
 import { exportAsCsv } from "../csvExport";
 import { formatAge, formatAmount, formatDateTime, formatPct } from "../format";
 import { href, navigate } from "../router";
@@ -26,7 +28,7 @@ import { TimelinePage } from "./TimelinePage";
 
 const RANGE_DAYS: Record<HistoryRange, number> = { "1w": 7, "1m": 31, "3m": 93, "6m": 186, "1y": 366, "2y": 732, "5y": 1830, max: 3650 };
 
-type Tab = "chart" | "quant" | "news" | "timeline" | "events";
+type Tab = "chart" | "quant" | "strategy" | "news" | "timeline" | "events" | "alerts";
 
 function toPoints(dates: string[], values: (string | null)[]): ChartPoint[] {
   const points: ChartPoint[] = [];
@@ -173,6 +175,9 @@ export function InstrumentPage({ instrumentId, initialTab }: { instrumentId: str
         <button type="button" className="export-button" onClick={() => setRefreshTick((t) => t + 1)}>
           Rafraîchir
         </button>
+        <button type="button" className="export-button" onClick={() => setTab("alerts")}>
+          Créer une alerte
+        </button>
         <a className="export-button" href={href("prediction") + `?instrument=${instrument.id}`}>
           Expérience de prédiction
         </a>
@@ -196,9 +201,11 @@ export function InstrumentPage({ instrumentId, initialTab }: { instrumentId: str
           [
             ["chart", "Cours & indicateurs"],
             ["quant", "Analyse quantitative"],
+            ["strategy", "Étude de stratégie"],
             ["news", "Actualités"],
             ["timeline", "Chronologie"],
             ["events", "Événements"],
+            ["alerts", "Alertes"],
           ] as [Tab, string][]
         ).map(([id, label]) => (
           <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>
@@ -368,6 +375,8 @@ export function InstrumentPage({ instrumentId, initialTab }: { instrumentId: str
       )}
 
       {tab === "quant" && <QuantPanel subject={{ instrument_id: instrument.id }} currency={currency} label={instrument.symbol} />}
+      {tab === "strategy" && <StrategyStudyPanel instrument={instrument} />}
+      {tab === "alerts" && <AlertForm instrument={instrument} quote={quote} />}
       {tab === "news" && <NewsPage instrumentId={instrument.id} />}
       {tab === "timeline" && <TimelinePage instrumentId={instrument.id} />}
       {tab === "events" && <EventsPage instrumentId={instrument.id} />}

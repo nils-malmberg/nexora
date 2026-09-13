@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { errorMessage, getMarketOverview, getProvidersStatus, removeFromWatchlist, listWatchlist } from "../api/client";
 import { AssetClassBadge, FreshnessBadge, QuoteStatusBadge } from "../components/Badges";
+import { ComparePanel } from "../components/ComparePanel";
 import { InstrumentSearch } from "../components/InstrumentSearch";
 import { formatAge, formatAmount, formatPct, formatQuantity } from "../format";
 import { href } from "../router";
@@ -70,6 +71,8 @@ export function MarketsPage() {
 
       <h3>Liste de suivi</h3>
       <OverviewTable entries={watchedOnly} emptyText="Aucun instrument suivi. Depuis la fiche d'un instrument, cliquez « Suivre »." onUnwatch={unwatch} />
+
+      <ComparePanel instruments={entries.map((e) => e.instrument)} />
     </section>
   );
 }

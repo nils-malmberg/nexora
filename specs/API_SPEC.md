@@ -8,6 +8,9 @@ Base `/api/v1`, JSON, UTC, identifiants opaques. Authentification via session/to
 - `GET /instruments/search?q=` et `GET /instruments/{id}/prices?from=&to=&interval=`
 - `POST /imports/preview`, `POST /imports/{id}/commit`, `GET /imports/{id}`
 - `GET /analytics/performance`, `/allocation`, `/risk`
+- `GET /portfolios/consolidated` (tous les portefeuilles dans la devise de référence) ; `GET /portfolios/{id}/analytics/realized?year=`, `/income?year=`
+- `GET /instruments/{id}/analytics/strategy-study?rule=&fast=&slow=&rsi_period=&rsi_low=&rsi_high=&fee_bps=&days=` ; `GET /market/compare?instrument_ids=&days=`
+- `GET/POST /alerts`, `POST /alerts/{id}/rearm`, `DELETE /alerts/{id}` ; `GET /notifications?unread_only=`, `POST /notifications/read`, `DELETE /notifications/{id}` — informatives uniquement, aucune action
 - `GET /education/{slug}`
 - `GET /providers/status`; administration séparée pour configuration et quotas
 - `GET /me/export`, `DELETE /me` (confirmation et réauthentification)

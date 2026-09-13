@@ -859,3 +859,220 @@ export interface SessionInfo {
   user_agent: string | null;
   current: boolean;
 }
+
+// ---------------------------------------------------------------------------
+// Consolidated wealth, realized gains, income
+// ---------------------------------------------------------------------------
+
+export interface ConsolidatedPortfolio {
+  id: string;
+  name: string;
+  base_currency: string;
+  total_value: string;
+  total_value_reference: string | null;
+  cash_reference: string | null;
+  positions: number;
+  has_missing_prices: boolean;
+  unconverted_currencies: string[];
+  fx_rate: string | null;
+  fx_source: string | null;
+}
+
+export interface Consolidated {
+  reference_currency: string;
+  as_of: string;
+  total_value: string;
+  cash: string;
+  positions_value: string;
+  portfolios: ConsolidatedPortfolio[];
+  by_portfolio: AllocationSlice[];
+  by_asset_class: AllocationSlice[];
+  by_instrument: AllocationSlice[];
+  by_currency: AllocationSlice[];
+  unconverted_currencies: string[];
+  has_missing_prices: boolean;
+}
+
+export interface RealizedSale {
+  transaction_id: string;
+  instrument_id: string;
+  symbol: string;
+  name: string;
+  trade_date: string;
+  quantity: string;
+  unit_price: string;
+  currency: string;
+  proceeds: string;
+  cost_basis: string | null;
+  realized_pnl: string | null;
+  realized_pnl_base: string | null;
+  holding_days: number | null;
+  mixed_currency: boolean;
+  fx_rate: string | null;
+  fx_source: string | null;
+}
+
+export interface RealizedTotal {
+  key: string;
+  label: string;
+  sales: number;
+  realized_pnl_base: string;
+  gains_base: string;
+  losses_base: string;
+}
+
+export interface RealizedReport {
+  base_currency: string;
+  year: number | null;
+  sales: RealizedSale[];
+  by_year: RealizedTotal[];
+  by_instrument: RealizedTotal[];
+  total_realized_pnl_base: string;
+  unconverted_currencies: string[];
+  mixed_currency_sales: number;
+  method: string;
+}
+
+export type IncomeRowType = "dividende" | "coupon" | "interet" | "frais" | "frais_transaction";
+
+export const INCOME_TYPE_LABELS: Record<IncomeRowType, string> = {
+  dividende: "Dividende",
+  coupon: "Coupon",
+  interet: "Intérêts",
+  frais: "Frais",
+  frais_transaction: "Frais de transaction",
+};
+
+export interface IncomeRow {
+  transaction_id: string;
+  trade_date: string;
+  type: IncomeRowType;
+  instrument_id: string | null;
+  symbol: string | null;
+  amount: string;
+  currency: string;
+  amount_base: string | null;
+  note: string | null;
+}
+
+export interface IncomeTotal {
+  key: string;
+  label: string;
+  income_base: string;
+  fees_base: string;
+  net_base: string;
+  count: number;
+}
+
+export interface IncomeReport {
+  base_currency: string;
+  year: number | null;
+  rows: IncomeRow[];
+  by_year: IncomeTotal[];
+  by_month: IncomeTotal[];
+  by_instrument: IncomeTotal[];
+  total_income_base: string;
+  total_fees_base: string;
+  unconverted_currencies: string[];
+  method: string;
+}
+
+// ---------------------------------------------------------------------------
+// Strategy study, comparison
+// ---------------------------------------------------------------------------
+
+export const STRATEGY_RULES = ["sma_cross", "price_above_sma", "rsi_reversion"] as const;
+export type StrategyRule = (typeof STRATEGY_RULES)[number];
+export const STRATEGY_RULE_LABELS: Record<StrategyRule, string> = {
+  sma_cross: "Croisement de moyennes mobiles (SMA rapide > SMA lente)",
+  price_above_sma: "Prix au-dessus de sa moyenne mobile",
+  rsi_reversion: "Retour à la moyenne du RSI (entrée sous le seuil bas, sortie au-dessus du seuil haut)",
+};
+
+export interface StrategyTrade {
+  entry_date: string;
+  exit_date: string | null;
+  entry_price: number;
+  exit_price: number | null;
+  return_pct: number | null;
+  holding_days: number | null;
+}
+
+export interface StrategyStudy {
+  instrument_id: string;
+  symbol: string;
+  currency: string;
+  has_sufficient_data: boolean;
+  observations: number;
+  rule: StrategyRule;
+  params: { fast: number; slow: number; rsi_period: number; rsi_low: number; rsi_high: number };
+  fee_bps: number;
+  dates: string[];
+  strategy_equity: number[];
+  benchmark_equity: number[];
+  invested: number[];
+  trades: StrategyTrade[];
+  n_trades: number;
+  exposure_share: number | null;
+  win_rate: number | null;
+  strategy_stats: ReturnStats | null;
+  benchmark_stats: ReturnStats | null;
+  method: string;
+  disclaimer: string;
+}
+
+export interface CompareSeries {
+  instrument: Instrument;
+  values: number[];
+  total_return: number | null;
+}
+
+export interface Comparison {
+  dates: string[];
+  base: number;
+  series: CompareSeries[];
+  observations: number;
+  method: string;
+}
+
+// ---------------------------------------------------------------------------
+// Informational alerts and notifications
+// ---------------------------------------------------------------------------
+
+export const ALERT_KINDS = ["price_above", "price_below", "move_pct"] as const;
+export type AlertKind = (typeof ALERT_KINDS)[number];
+export const ALERT_KIND_LABELS: Record<AlertKind, string> = {
+  price_above: "Cours au-dessus de",
+  price_below: "Cours en dessous de",
+  move_pct: "Variation quotidienne d'au moins (±%)",
+};
+
+export interface PriceAlert {
+  id: string;
+  instrument: Instrument;
+  kind: AlertKind;
+  kind_label: string;
+  threshold: string;
+  note: string | null;
+  active: boolean;
+  created_at: string;
+  triggered_at: string | null;
+  last_evaluated_at: string | null;
+  last_value: string | null;
+}
+
+export interface Notification {
+  id: string;
+  instrument_id: string | null;
+  alert_id: string | null;
+  kind: string;
+  title: string;
+  body: string;
+  created_at: string;
+  read_at: string | null;
+}
+
+export interface Notifications {
+  items: Notification[];
+  unread: number;
+}

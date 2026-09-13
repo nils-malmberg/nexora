@@ -16,7 +16,7 @@ cd backend
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 alembic upgrade head          # SQLite local par défaut (./nexora.db), aucune base externe requise
-pytest tests -q               # 325 tests, tous hors ligne (fournisseurs "fixture", respx pour le HTTP)
+pytest tests -q               # 344 tests, tous hors ligne (fournisseurs "fixture", respx pour le HTTP)
 uvicorn app.api.main:app --reload --port 8000
 python -m app.worker.scheduler   # optionnel : rafraîchissement périodique marché + actualités
 ```
@@ -28,10 +28,13 @@ origine, cookie de session first-party, aucun CORS à configurer.
 
 ```
 app/api/            routeurs HTTP (auth, me, portfolios, instruments, market, imports, analytics,
-                    news, timeline, events, education, prediction, providers, admin), deps, erreurs
+                    news, timeline, events, education, prediction, providers, admin, wealth :
+                    consolidé / réalisé / revenus / stratégie / comparaison / alertes), deps, erreurs
 app/domain/         règles métier pures : positions FIFO + valorisation (positions.py), FX (fx.py),
-                    analyse Phase 2 (analytics.py), boîte à outils quantitative (quant.py), import CSV
-                    (csv_import.py) et profils d'export courtier Trade Republic / Revolut (broker_presets.py)
+                    analyse Phase 2 (analytics.py), boîte à outils quantitative + étude de stratégie
+                    (quant.py), plus-values réalisées et revenus (realized.py), patrimoine consolidé
+                    (consolidated.py), alertes informatives (alerts.py), import CSV (csv_import.py)
+                    et profils d'export courtier Trade Republic / Revolut (broker_presets.py)
 app/market/         fournisseurs de marché interchangeables : contrat (base.py), yahoo, coingecko,
                     finnhub, frankfurter, fixture/null ; budget de requêtes (ratelimit.py), HTTP
                     commun (http.py), sélection + disjoncteur (registry.py), service cache-first
@@ -40,8 +43,9 @@ app/news/           pipeline Actualités & Événements (adaptateurs RSS/JSON/IC
                     Finnhub « company-news » par action/ETF suivi (clé FINNHUB_API_KEY)
 app/prediction/     moteur expérimental (engine.py : jeu de données sans fuite, walk-forward,
                     métamodèle) et service d'exécution
-app/education_content.py   contenu d'aide versionné (17 articles)
-app/worker/         scheduler APScheduler (ingestion actualités + rafraîchissement marché)
+app/education_content.py   contenu d'aide versionné (23 articles)
+app/worker/         scheduler APScheduler (ingestion actualités, rafraîchissement marché puis
+                    évaluation des alertes sur les données stockées)
 alembic/            une seule histoire de migrations (schéma unifié)
 ```
 
@@ -110,6 +114,34 @@ rafraîchi à la demande au plus une fois par `NEXORA_NEWS_FRESHNESS_MINUTES` et
 uniquement pour les instruments suivis. Chaque appel consomme le budget `finnhub` ; les erreurs
 4xx (clé invalide) ne sont pas re-tentées ; sans clé, `POST /instruments/{id}/news/refresh`
 répond `not_configured` et l'interface explique quoi faire.
+
+## Plus-values réalisées, revenus, patrimoine consolidé
+
+`replay_lots` enregistre, pour chaque vente, les tranches de lots consommées (une seule
+implémentation FIFO pour les positions ouvertes et le réalisé). `realized_report` donne produit
+net, coût FIFO et résultat par vente, par année et par instrument, converti au taux daté du jour de
+la vente ; une vente dans une autre devise que ses lots est marquée `mixed_currency` et exclue des
+totaux. `income_report` regroupe dividendes/coupons/intérêts et frais (autonomes ou inclus dans les
+achats/ventes) par année, mois et instrument. `consolidated_view` convertit chaque portefeuille dans
+la devise de référence de l'utilisateur (taux et source par portefeuille) ; ce qui n'est pas
+convertible est listé, jamais estimé. La règle fiscale (PMP en France) peut différer : l'aide le dit.
+
+## Alertes informatives
+
+`price_alerts` (cours au-dessus / en dessous d'un seuil, variation quotidienne absolue) sont
+évaluées **uniquement** sur les observations déjà stockées — par le worker après chaque cycle de
+rafraîchissement et à l'ouverture des notifications — donc sans aucune requête fournisseur
+supplémentaire. Une alerte déclenchée est désactivée (une seule notification, réarmable) ; les
+notifications lues de plus de 90 jours sont purgées. Rien n'est envoyé hors de l'application et
+rien n'est exécuté (`tests/integration/test_no_order_endpoints.py` couvre aussi ces routes).
+
+## Étude de stratégie et comparaison
+
+`quant.strategy_study` simule une règle (croisement de SMA, prix au-dessus de sa SMA, retour à la
+moyenne du RSI) : signal sur la clôture du jour t, position 0/100 % appliquée en t+1 (test
+anti-look-ahead dans `tests/unit/test_realized_and_strategy.py`), frais à chaque changement,
+référence « acheter et conserver » sur la même période, mêmes statistiques pour les deux courbes.
+`quant.rebase_series` aligne plusieurs séries sur leurs dates communes et les rebase à 100.
 
 ## Valorisation et FX
 
