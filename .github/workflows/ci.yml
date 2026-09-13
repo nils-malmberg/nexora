@@ -36,10 +36,9 @@ jobs:
           cache: "pip"
       - run: pip install --upgrade pip setuptools
       - run: pip install -e ".[dev]"
-      # Coverage over the full suite here, not just unit: adapters, the API,
-      # and pipeline orchestration are exercised by integration tests, so a
-      # unit-only coverage gate never gets anywhere near 85% and fails on
-      # every run regardless of actual test health.
+      # Coverage over the full suite (unit + integration): adapters, the API
+      # and the pipelines are exercised by integration tests. No test ever
+      # reaches a real provider (see tests/conftest.py).
       - run: coverage run -m pytest tests -q
       - run: coverage report --fail-under=85
 
@@ -95,7 +94,7 @@ jobs:
       - run: pip install --upgrade pip setuptools
       - run: pip install -e ".[dev]" bandit pip-audit
       - name: SAST (bandit)
-        run: bandit -q -r app -x app/observability
+        run: bandit -q -r app
       - name: Dependency vulnerability scan (pip-audit)
         # --skip-editable: our own local package isn't on PyPI. Not --strict:
         # that flag fails on ANY skipped/unauditable package, which our own

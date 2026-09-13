@@ -20,7 +20,7 @@ import sys
 from sqlalchemy import select
 
 from app.db import SessionLocal
-from app.models import Asset, Provider, ProviderFeed
+from app.models import Instrument, Provider, ProviderFeed
 
 SYMBOL = "AAPL"
 NAME = "Apple Inc."
@@ -37,10 +37,10 @@ FINNHUB_MAPPING = {
 }
 
 
-def get_or_create_asset(db) -> Asset:
-    asset = db.scalar(select(Asset).where(Asset.symbol == SYMBOL))
+def get_or_create_asset(db) -> Instrument:
+    asset = db.scalar(select(Instrument).where(Instrument.symbol == SYMBOL))
     if asset is None:
-        asset = Asset(symbol=SYMBOL, name=NAME, market=MARKET, currency=CURRENCY)
+        asset = Instrument(symbol=SYMBOL, name=NAME, exchange=MARKET, currency=CURRENCY, asset_class="action")
         db.add(asset)
         db.flush()
     return asset
@@ -58,12 +58,16 @@ def get_or_create_provider(db, name: str, type_: str, config: dict, license_note
     return provider
 
 
-def ensure_feed(db, provider: Provider, url: str, asset_id: str, extra_config: dict) -> None:
+def ensure_feed(db, provider: Provider, url: str, instrument_id: str, extra_config: dict) -> None:
     existing = next((f for f in provider.feeds if f.url == url), None)
     if existing is None:
-        db.add(ProviderFeed(provider_id=provider.id, url=url, extra_config={"asset_id": asset_id, **extra_config}))
+        db.add(
+            ProviderFeed(
+                provider_id=provider.id, url=url, extra_config={"instrument_id": instrument_id, **extra_config}
+            )
+        )
     else:
-        existing.extra_config = {"asset_id": asset_id, **extra_config}
+        existing.extra_config = {"instrument_id": instrument_id, **extra_config}
 
 
 def main() -> None:
@@ -118,7 +122,7 @@ def main() -> None:
         print(f"  python -m app.worker.cli sync {provider.name}")
         print("\nVerifier :")
         print("  curl -s http://localhost:8000/api/v1/providers/status | python3 -m json.tool")
-        print(f"  curl -s http://localhost:8000/api/v1/assets/{asset.id}/news | python3 -m json.tool")
+        print(f"  curl -s http://localhost:8000/api/v1/instruments/{asset.id}/news | python3 -m json.tool")
     finally:
         db.close()
 

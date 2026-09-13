@@ -13,7 +13,7 @@ class RelatedItemRef(BaseModel):
 
 class NewsItemOut(BaseModel):
     id: str
-    asset_ids: list[str]
+    instrument_ids: list[str]
     provider_id: str
     provider_name: str
     kind: str

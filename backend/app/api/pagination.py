@@ -1,10 +1,6 @@
-"""Opaque cursor pagination: base64("<iso-timestamp>|<id>").
-
-Cursors encode a (sort_key, id) position and are compared as a composite
-tuple so ties on the sort key (two items with the same publication_at) are
-still ordered deterministically - required for the "pagination stable" rule
-in specs/API_SPEC.md.
-"""
+"""Opaque cursor pagination: base64("<iso-timestamp>|<id>"). Same convention
+as the News & Events module's API (see specs/API_SPEC.md: "Pagination
+curseur")."""
 
 from __future__ import annotations
 

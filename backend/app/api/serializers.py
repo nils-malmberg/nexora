@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models import Event, NewsItem, NewsItemRelation, Provider
-from app.pipeline.cache import is_stale
+from app.news.pipeline.cache import is_stale
 from app.schemas.events import EventOut
 from app.schemas.news import NewsItemOut, RelatedItemRef
 
@@ -42,7 +42,7 @@ def news_item_to_out(item: NewsItem, db: Session, *, now: datetime | None = None
 
     return NewsItemOut(
         id=item.id,
-        asset_ids=[link.asset_id for link in item.asset_links],
+        instrument_ids=[link.instrument_id for link in item.asset_links],
         provider_id=item.provider_id,
         provider_name=provider.name if provider else item.provider_id,
         kind=item.kind,
@@ -78,7 +78,7 @@ def event_to_out(event: Event, *, now: datetime | None = None, display_tz=None) 
     return EventOut.model_validate(
         {
             "id": event.id,
-            "asset_id": event.asset_id,
+            "instrument_id": event.instrument_id,
             "type": event.type,
             "starts_at": starts_at,
             "period_label": event.period_label,

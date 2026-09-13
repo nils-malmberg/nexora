@@ -6,22 +6,22 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy import or_, select, tuple_
 from sqlalchemy.orm import Session
 
-from app.adapters.common import ALLOWED_CATEGORIES, ALLOWED_KINDS
-from app.api.deps import get_db
+from app.api.deps import get_current_user, get_db, get_visible_instrument
 from app.api.pagination import clamp_page_size, decode_cursor, encode_cursor
 from app.api.serializers import compute_list_etag, news_item_to_out
 from app.config import settings
-from app.models import Asset, NewsItem, NewsItemAsset
+from app.models import NewsItem, NewsItemAsset, User
+from app.news.adapters.common import ALLOWED_CATEGORIES, ALLOWED_KINDS
 from app.observability.metrics import stale_responses_total
 from app.schemas.common import Page
 from app.schemas.news import NewsItemOut
 
-router = APIRouter(prefix="/api/v1/assets", tags=["news"])
+router = APIRouter(prefix="/api/v1/instruments", tags=["news"])
 
 
-@router.get("/{asset_id}/news", response_model=Page[NewsItemOut])
-def list_asset_news(
-    asset_id: str,
+@router.get("/{instrument_id}/news", response_model=Page[NewsItemOut])
+def list_instrument_news(
+    instrument_id: str,
     request: Request,
     response: Response,
     category: str | None = Query(default=None),
@@ -33,10 +33,10 @@ def list_asset_news(
     ),
     cursor: str | None = Query(default=None),
     limit: int | None = Query(default=None, ge=1),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Page[NewsItemOut]:
-    if db.get(Asset, asset_id) is None:
-        raise HTTPException(status_code=404, detail="asset not found")
+    get_visible_instrument(instrument_id, db, user)
     if category is not None and category not in ALLOWED_CATEGORIES:
         raise HTTPException(status_code=400, detail=f"unknown category '{category}'")
     if kind is not None and kind not in ALLOWED_KINDS:
@@ -47,7 +47,7 @@ def list_asset_news(
     query = (
         select(NewsItem)
         .join(NewsItemAsset, NewsItemAsset.news_item_id == NewsItem.id)
-        .where(NewsItemAsset.asset_id == asset_id)
+        .where(NewsItemAsset.instrument_id == instrument_id)
         .order_by(NewsItem.publication_at.desc(), NewsItem.id.desc())
     )
     if category:
@@ -78,7 +78,7 @@ def list_asset_news(
 
     out_items = [news_item_to_out(row, db) for row in rows]
     if any(item.stale for item in out_items):
-        stale_responses_total.labels(endpoint="assets_news").inc()
+        stale_responses_total.labels(endpoint="instrument_news").inc()
 
     next_cursor = encode_cursor(rows[-1].publication_at, rows[-1].id) if has_more and rows else None
     response.headers["ETag"] = etag

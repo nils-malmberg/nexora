@@ -15,7 +15,7 @@ import re
 import sys
 from datetime import UTC, datetime
 
-_REDACT_SUBSTRINGS = ("authorization", "api_key", "apikey", "token", "password", "secret", "cookie")
+_REDACT_SUBSTRINGS = ("authorization", "api_key", "apikey", "token", "password", "secret", "cookie", "csrf")
 _TRUNCATE_KEYS = {"title", "excerpt", "summary", "content", "raw", "body", "raw_meta"}
 _TRUNCATE_LEN = 120
 

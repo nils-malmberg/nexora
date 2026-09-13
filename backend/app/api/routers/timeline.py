@@ -11,30 +11,30 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.adapters.common import ALLOWED_CATEGORIES
 from app.api.bucketing import GRANULARITIES, bucket_label
-from app.api.deps import get_db
+from app.api.deps import get_current_user, get_db, get_visible_instrument
 from app.api.serializers import event_to_out, news_item_to_out
-from app.models import Asset, Event, NewsItem, NewsItemAsset
+from app.models import Event, NewsItem, NewsItemAsset, User
+from app.news.adapters.common import ALLOWED_CATEGORIES
 from app.schemas.timeline import TimelineEntryOut
 
-router = APIRouter(prefix="/api/v1/assets", tags=["timeline"])
+router = APIRouter(prefix="/api/v1/instruments", tags=["timeline"])
 
 DEFAULT_TIMELINE_LIMIT = 200
 
 
-@router.get("/{asset_id}/timeline", response_model=list[TimelineEntryOut])
-def get_asset_timeline(
-    asset_id: str,
+@router.get("/{instrument_id}/timeline", response_model=list[TimelineEntryOut])
+def get_instrument_timeline(
+    instrument_id: str,
     granularity: str = Query(default="month"),
     category: str | None = Query(default=None),
     since: datetime | None = Query(default=None),
     until: datetime | None = Query(default=None),
     limit: int = Query(default=DEFAULT_TIMELINE_LIMIT, ge=1, le=1000),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[TimelineEntryOut]:
-    if db.get(Asset, asset_id) is None:
-        raise HTTPException(status_code=404, detail="asset not found")
+    get_visible_instrument(instrument_id, db, user)
     if granularity not in GRANULARITIES:
         raise HTTPException(status_code=400, detail=f"unknown granularity '{granularity}'")
     if category is not None and category not in ALLOWED_CATEGORIES:
@@ -43,9 +43,9 @@ def get_asset_timeline(
     news_query = (
         select(NewsItem)
         .join(NewsItemAsset, NewsItemAsset.news_item_id == NewsItem.id)
-        .where(NewsItemAsset.asset_id == asset_id)
+        .where(NewsItemAsset.instrument_id == instrument_id)
     )
-    events_query = select(Event).where(Event.asset_id == asset_id)
+    events_query = select(Event).where(Event.instrument_id == instrument_id)
     if category:
         news_query = news_query.where(NewsItem.category == category)
     if since:

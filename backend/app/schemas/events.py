@@ -25,7 +25,7 @@ class EventStatusHistoryOut(BaseModel):
 
 class EventOut(BaseModel):
     id: str
-    asset_id: str
+    instrument_id: str
     type: str
     starts_at: datetime | None
     period_label: str | None

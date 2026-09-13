@@ -11,8 +11,8 @@ from sqlalchemy import select
 from app.config import settings
 from app.db import SessionLocal
 from app.models import Provider
+from app.news.pipeline.ingest import run_provider
 from app.observability.logging import configure_logging
-from app.pipeline.ingest import run_provider
 
 
 def sync_one(provider_name: str) -> int:

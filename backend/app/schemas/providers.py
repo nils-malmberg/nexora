@@ -6,6 +6,8 @@ from pydantic import BaseModel
 
 
 class ProviderStatusOut(BaseModel):
+    """A news/events source (RSS, JSON API, calendar)."""
+
     id: str
     name: str
     type: str
@@ -31,3 +33,39 @@ class IngestionRunOut(BaseModel):
     latency_ms: int | None
 
     model_config = {"from_attributes": True}
+
+
+class MarketProviderStateOut(BaseModel):
+    """A market-data / FX source's runtime state (never its credential)."""
+
+    name: str
+    enabled: bool
+    env_var: str | None
+    license_note: str | None
+    last_attempt_at: datetime | None
+    last_success_at: datetime | None
+    last_error: str | None
+    consecutive_failures: int
+    circuit_state: str
+    disabled_reason: str | None
+
+    model_config = {"from_attributes": True}
+
+
+class MarketProviderPublicOut(BaseModel):
+    name: str
+    role: str  # equity | crypto | fx
+    enabled: bool
+    healthy: bool
+    circuit_state: str
+    last_success_at: datetime | None
+    attribution: str | None
+    license_note: str | None
+    capabilities: dict
+
+
+class ProvidersOverviewOut(BaseModel):
+    market: list[MarketProviderPublicOut]
+    news: list[ProviderStatusOut]
+    prediction_enabled: bool
+    quote_freshness_minutes: int
