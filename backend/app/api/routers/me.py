@@ -10,8 +10,10 @@ from app.models import (
     AuditEvent,
     ImportJob,
     Instrument,
+    Notification,
     Portfolio,
     PredictionExperiment,
+    PriceAlert,
     PricePoint,
     PrivateValuation,
     Transaction,
@@ -40,6 +42,8 @@ class ExportOut(BaseModel):
     watchlist_instrument_ids: list[str]
     import_jobs: list[ImportJobSummaryOut]
     prediction_experiments: list[dict]
+    alerts: list[dict] = []
+    notifications: list[dict] = []
 
 
 class DeleteAccountRequest(BaseModel):
@@ -85,6 +89,8 @@ def export_my_data(user: User = Depends(get_current_user), db: Session = Depends
     )
     jobs = db.scalars(select(ImportJob).where(ImportJob.user_id == user.id)).all()
     experiments = db.scalars(select(PredictionExperiment).where(PredictionExperiment.user_id == user.id)).all()
+    alerts = db.scalars(select(PriceAlert).where(PriceAlert.user_id == user.id)).all()
+    notifications = db.scalars(select(Notification).where(Notification.user_id == user.id)).all()
 
     return ExportOut(
         user=UserOut.model_validate(user),
@@ -108,6 +114,31 @@ def export_my_data(user: User = Depends(get_current_user), db: Session = Depends
                 "trained_at": e.trained_at.isoformat() if e.trained_at else None,
             }
             for e in experiments
+        ],
+        alerts=[
+            {
+                "id": a.id,
+                "instrument_id": a.instrument_id,
+                "kind": a.kind,
+                "threshold": str(a.threshold),
+                "note": a.note,
+                "active": a.active,
+                "created_at": a.created_at.isoformat(),
+                "triggered_at": a.triggered_at.isoformat() if a.triggered_at else None,
+            }
+            for a in alerts
+        ],
+        notifications=[
+            {
+                "id": n.id,
+                "instrument_id": n.instrument_id,
+                "kind": n.kind,
+                "title": n.title,
+                "body": n.body,
+                "created_at": n.created_at.isoformat(),
+                "read_at": n.read_at.isoformat() if n.read_at else None,
+            }
+            for n in notifications
         ],
     )
 

@@ -545,6 +545,214 @@ def monte_carlo_gbm(
 
 
 # ---------------------------------------------------------------------------
+# Strategy study (rule-based backtest, educational)
+# ---------------------------------------------------------------------------
+
+STRATEGY_RULES = ("sma_cross", "price_above_sma", "rsi_reversion")
+
+STRATEGY_DISCLAIMER = (
+    "Étude historique d'une règle mécanique : le résultat dépend entièrement des paramètres choisis et de la "
+    "période (sur-ajustement), ignore la liquidité, les écarts de cours et la fiscalité, et ne se reproduit "
+    "pas dans le futur. Outil pédagogique — ni signal, ni recommandation."
+)
+
+
+def _sma_f(values: np.ndarray, window: int) -> np.ndarray:
+    out = np.full(len(values), np.nan)
+    if window <= 0 or len(values) < window:
+        return out
+    cumsum = np.cumsum(np.insert(values, 0, 0.0))
+    out[window - 1 :] = (cumsum[window:] - cumsum[:-window]) / window
+    return out
+
+
+def _rsi_f(values: np.ndarray, window: int) -> np.ndarray:
+    """Wilder's RSI (same smoothing as app/domain/analytics._rsi)."""
+    out = np.full(len(values), np.nan)
+    if window <= 0 or len(values) <= window:
+        return out
+    deltas = np.diff(values)
+    gains = np.where(deltas > 0, deltas, 0.0)
+    losses = np.where(deltas < 0, -deltas, 0.0)
+    avg_gain = gains[:window].mean()
+    avg_loss = losses[:window].mean()
+    for i in range(window, len(deltas)):
+        if i > window:
+            avg_gain = (avg_gain * (window - 1) + gains[i]) / window
+            avg_loss = (avg_loss * (window - 1) + losses[i]) / window
+        if avg_loss == 0:
+            out[i + 1] = 100.0 if avg_gain > 0 else 50.0
+        else:
+            rs = avg_gain / avg_loss
+            out[i + 1] = 100.0 - 100.0 / (1.0 + rs)
+    return out
+
+
+@dataclass
+class StrategyTrade:
+    entry_date: object
+    exit_date: object | None
+    entry_price: float
+    exit_price: float | None
+    return_pct: float | None
+    holding_days: int | None
+
+
+@dataclass
+class StrategyStudy:
+    has_sufficient_data: bool
+    observations: int
+    rule: str
+    params: dict
+    fee_bps: float
+    dates: list = field(default_factory=list)
+    strategy_equity: list[float] = field(default_factory=list)
+    benchmark_equity: list[float] = field(default_factory=list)
+    invested: list[int] = field(default_factory=list)
+    trades: list[StrategyTrade] = field(default_factory=list)
+    n_trades: int = 0
+    exposure_share: float | None = None
+    win_rate: float | None = None
+    strategy_stats: ReturnStats | None = None
+    benchmark_stats: ReturnStats | None = None
+    method: str = (
+        "signal calculé sur la clôture du jour t, position (0 ou 100 %, jamais à découvert) appliquée à partir "
+        "du jour t+1 ; frais proportionnels prélevés à chaque changement de position ; référence = acheter et "
+        "conserver sur la même période"
+    )
+    disclaimer: str = STRATEGY_DISCLAIMER
+
+
+def _rule_signal(rule: str, closes: np.ndarray, params: dict) -> np.ndarray:
+    """1 = invested after this close, 0 = in cash. Uses only data up to and
+    including day t."""
+    n = len(closes)
+    if rule == "sma_cross":
+        fast = _sma_f(closes, params["fast"])
+        slow = _sma_f(closes, params["slow"])
+        with np.errstate(invalid="ignore"):
+            return np.where(np.isnan(fast) | np.isnan(slow), 0, (fast > slow).astype(int))
+    if rule == "price_above_sma":
+        sma = _sma_f(closes, params["slow"])
+        with np.errstate(invalid="ignore"):
+            return np.where(np.isnan(sma), 0, (closes > sma).astype(int))
+    if rule == "rsi_reversion":
+        rsi = _rsi_f(closes, params["rsi_period"])
+        signal = np.zeros(n, dtype=int)
+        invested = 0
+        for i in range(n):
+            if np.isnan(rsi[i]):
+                signal[i] = 0
+                continue
+            if invested == 0 and rsi[i] < params["rsi_low"]:
+                invested = 1
+            elif invested == 1 and rsi[i] > params["rsi_high"]:
+                invested = 0
+            signal[i] = invested
+        return signal
+    raise ValueError(f"unknown rule {rule!r}")
+
+
+def strategy_study(
+    dates: list,
+    closes,
+    rule: str,
+    *,
+    fast: int = 20,
+    slow: int = 50,
+    rsi_period: int = 14,
+    rsi_low: float = 30.0,
+    rsi_high: float = 70.0,
+    fee_bps: float = 10.0,
+    min_obs: int = 60,
+) -> StrategyStudy:
+    if rule not in STRATEGY_RULES:
+        raise ValueError(f"unknown rule {rule!r}")
+    params = {"fast": fast, "slow": slow, "rsi_period": rsi_period, "rsi_low": rsi_low, "rsi_high": rsi_high}
+    c = _f(closes)
+    n = len(c)
+    warmup = {"sma_cross": max(fast, slow), "price_above_sma": slow, "rsi_reversion": rsi_period + 1}[rule]
+    if n < max(min_obs, warmup + 20) or (rule == "sma_cross" and fast >= slow):
+        return StrategyStudy(False, n, rule, params, fee_bps)
+
+    signal = _rule_signal(rule, c, params)
+    fee = fee_bps / 10_000.0
+    equity = np.ones(n)
+    invested = np.zeros(n, dtype=int)
+    position = 0
+    trades: list[StrategyTrade] = []
+    entry_index: int | None = None
+    for t in range(1, n):
+        daily = c[t] / c[t - 1] - 1.0 if c[t - 1] > 0 else 0.0
+        equity[t] = equity[t - 1] * (1.0 + position * daily)
+        target = int(signal[t])
+        if target != position:
+            equity[t] *= 1.0 - fee
+            if target == 1:
+                entry_index = t
+            elif entry_index is not None:
+                trades.append(_close_trade(dates, c, entry_index, t, fee))
+                entry_index = None
+            position = target
+        invested[t] = position
+    if entry_index is not None:  # still invested at the end: an open, unrealized trade
+        trades.append(StrategyTrade(dates[entry_index], None, float(c[entry_index]), None, None, None))
+
+    benchmark = c / c[0] if c[0] > 0 else np.ones(n)
+    closed = [tr for tr in trades if tr.return_pct is not None]
+    return StrategyStudy(
+        has_sufficient_data=True,
+        observations=n,
+        rule=rule,
+        params=params,
+        fee_bps=fee_bps,
+        dates=list(dates),
+        strategy_equity=[float(x) for x in equity],
+        benchmark_equity=[float(x) for x in benchmark],
+        invested=[int(x) for x in invested],
+        trades=trades,
+        n_trades=len(trades),
+        exposure_share=float(invested.mean()),
+        win_rate=(sum(1 for tr in closed if tr.return_pct > 0) / len(closed)) if closed else None,
+        strategy_stats=return_stats(equity),
+        benchmark_stats=return_stats(benchmark),
+    )
+
+
+def _close_trade(dates, closes, entry: int, exit_: int, fee: float) -> StrategyTrade:
+    entry_price = float(closes[entry])
+    exit_price = float(closes[exit_])
+    gross = exit_price / entry_price - 1.0 if entry_price > 0 else 0.0
+    net = (1.0 + gross) * (1.0 - fee) ** 2 - 1.0
+    holding = None
+    try:
+        holding = (dates[exit_] - dates[entry]).days
+    except (TypeError, AttributeError):
+        pass
+    return StrategyTrade(dates[entry], dates[exit_], entry_price, exit_price, net, holding)
+
+
+# ---------------------------------------------------------------------------
+# Rebased comparison (base 100)
+# ---------------------------------------------------------------------------
+
+
+def rebase_series(series: dict[str, list[tuple]], base: float = 100.0) -> tuple[list, dict[str, list[float]]]:
+    """Aligns several (date, value) series on their common dates and rebases
+    each to `base` on the first common date, so different price levels and
+    currencies can be read on one axis (relative paths, not amounts)."""
+    dates, aligned = align_on_dates(series)
+    rebased: dict[str, list[float]] = {}
+    for label, values in aligned.items():
+        v = _f(values)
+        if len(v) == 0 or v[0] <= 0:
+            rebased[label] = []
+            continue
+        rebased[label] = [float(x) for x in v / v[0] * base]
+    return dates, rebased
+
+
+# ---------------------------------------------------------------------------
 # Series alignment helper
 # ---------------------------------------------------------------------------
 

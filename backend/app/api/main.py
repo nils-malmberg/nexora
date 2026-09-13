@@ -25,6 +25,7 @@ from app.api.routers import (
     prediction,
     providers,
     timeline,
+    wealth,
 )
 from app.config import settings
 from app.observability.logging import configure_logging
@@ -83,6 +84,7 @@ async def security_headers(request: Request, call_next):
 for router in (
     auth.router,
     me.router,
+    wealth.router,  # before portfolios: /portfolios/consolidated vs /portfolios/{id}
     portfolios.router,
     instruments.router,
     market.router,

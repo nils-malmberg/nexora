@@ -10,7 +10,7 @@ in plain text so they render everywhere.
 
 from __future__ import annotations
 
-VERSION = "2026-09-13.2"
+VERSION = "2026-09-13.3"
 
 CATEGORIES = {
     "bases": "Bases de la valorisation",
@@ -19,6 +19,7 @@ CATEGORIES = {
     "technique": "Analyse technique",
     "prediction": "Prédiction et validation",
     "donnees": "Données et sources",
+    "suivi": "Suivi, revenus et fiscalité",
 }
 
 
@@ -551,5 +552,183 @@ ARTICLES: dict[str, dict] = {
             ),
         ],
         ("prediction-walk-forward",),
+    ),
+    # ------------------------------------------------------------------ suivi
+    "patrimoine-consolide": _a(
+        "Patrimoine consolidé (tous portefeuilles)",
+        "suivi",
+        "Comment plusieurs portefeuilles, parfois dans des devises différentes, deviennent un seul total.",
+        "La somme de la valeur de tous vos portefeuilles (Trade Republic, Revolut, PEA, crypto…) exprimée dans "
+        "votre devise de référence, avec la répartition globale par portefeuille, classe d'actifs, instrument et "
+        "devise.",
+        "Chaque portefeuille est d'abord valorisé dans sa propre devise de base (voir « Valorisation »). Son total "
+        "est ensuite converti dans la devise de référence de votre profil au taux de référence daté le plus récent "
+        "(source et taux affichés par portefeuille). La trésorerie apparaît comme une classe à part entière dans la "
+        "répartition consolidée, puisqu'ici l'objectif est la photographie complète du patrimoine.",
+        "Un portefeuille dont la devise n'a pas de taux connu est listé mais exclu du total (jamais converti à un "
+        "taux inventé). Les prix manquants sont signalés. Les taux sont ceux de la Banque centrale européenne (ou "
+        "de la source configurée), pas ceux que votre courtier vous appliquerait. Les positions identiques dans "
+        "deux portefeuilles sont regroupées par symbole.",
+        [
+            (
+                "Pourquoi une devise de référence",
+                "Additionner 1 000 € et 1 000 $ n'a pas de sens ; le total consolidé passe par un taux daté et "
+                "sourcé. Changer la devise de référence dans Paramètres recalcule tout — rien n'est stocké converti.",
+            ),
+            (
+                "Ce que la répartition permet",
+                "Repérer une concentration (un titre, une devise, une classe) qui n'apparaît pas à l'échelle d'un "
+                "seul compte. C'est une mesure, pas une cible : il n'existe pas de « bonne » répartition universelle.",
+            ),
+        ],
+        ("valorisation", "taux-de-change", "allocation"),
+    ),
+    "plus-values-realisees": _a(
+        "Plus-values réalisées (FIFO)",
+        "suivi",
+        "Ce qu'une vente a réellement rapporté ou coûté, une fois rapprochée des achats correspondants.",
+        "Pour chaque vente : le produit net (quantité × prix − frais de vente) moins le coût des titres vendus "
+        "(prix d'achat + frais d'achat des lots consommés), par vente, par année et par instrument.",
+        "Méthode FIFO (premier entré, premier sorti) : une vente consomme d'abord les titres achetés le plus tôt. "
+        "C'est exactement le même appariement que celui qui calcule vos positions ouvertes ; un split ajuste la "
+        "quantité et le coût unitaire des lots avant la vente. Le résultat est converti dans la devise du "
+        "portefeuille au taux daté du jour de la vente.",
+        "La règle fiscale applicable peut différer (en France, le prix moyen pondéré d'acquisition — PMP — est la "
+        "méthode de référence pour les titres ; d'autres pays utilisent FIFO ou l'identification spécifique). Ce "
+        "rapport est un outil de suivi, pas une déclaration : vérifiez avec les documents de votre courtier et, au "
+        "besoin, un professionnel. Une vente dans une autre devise que celle des achats est signalée sans P&L. "
+        "Les dividendes ne sont pas des plus-values (voir « Revenus du portefeuille »).",
+        [
+            (
+                "Exemple",
+                "Achat de 10 titres à 100 € (frais 10 €) puis 10 à 120 €. Vente de 15 titres à 130 € (frais 5 €) : "
+                "produit 1 945 € ; coût = 10 × 101 € + 5 × 120 € = 1 610 € ; plus-value réalisée = 335 €.",
+            ),
+            (
+                "FIFO vs PMP",
+                "Avec le PMP, le coût des 15 titres serait 15 × 110,5 € = 1 657,5 € et la plus-value 287,5 €. Les "
+                "deux méthodes donnent le même total sur la vie complète de la position ; elles répartissent "
+                "différemment le résultat entre les ventes successives.",
+            ),
+            (
+                "Durée de détention",
+                "Le nombre de jours affiché va du lot le plus ancien consommé jusqu'à la vente ; certaines fiscalités "
+                "en dépendent (abattements, distinction court/long terme).",
+            ),
+        ],
+        ("valorisation", "revenus-du-portefeuille"),
+    ),
+    "revenus-du-portefeuille": _a(
+        "Revenus du portefeuille et frais",
+        "suivi",
+        "Dividendes, coupons, intérêts et frais : ce que le portefeuille verse et ce qu'il coûte, par période.",
+        "Les montants encaissés (dividendes d'actions et d'ETF distribuants, coupons d'obligations, intérêts sur "
+        "la trésorerie) et les montants décaissés en frais (frais autonomes comme les droits de garde, frais inclus "
+        "dans chaque achat ou vente), par année, par mois et par instrument.",
+        "Chaque opération est prise au montant net saisi ou importé (les retenues à la source déjà déduites par le "
+        "courtier ne sont pas reconstituées). Les montants dans une autre devise sont convertis au taux daté du "
+        "jour de l'opération. Les dépôts et retraits ne sont pas des revenus : ce sont des flux externes.",
+        "Le rendement sur dividendes (« dividend yield ») n'est pas calculé automatiquement : il dépend du prix de "
+        "référence choisi (prix d'achat, cours actuel) et prête à confusion. Un ETF capitalisant ne verse rien : "
+        "sa performance est dans son cours. La fiscalité (prélèvement forfaitaire, crédit d'impôt sur retenue à la "
+        "source étrangère) n'est pas modélisée.",
+        [
+            (
+                "Lecture",
+                "La vue par mois montre la saisonnalité (beaucoup de dividendes européens tombent au printemps) ; la "
+                "vue par instrument montre d'où viennent les revenus. Frais nets = ce que coûte réellement "
+                "l'activité de l'année.",
+            ),
+            (
+                "Revenus et performance",
+                "Le TWR/MWR inclut déjà les revenus (ils augmentent la trésorerie) ; ce rapport les isole pour les "
+                "lire à part, il ne s'y ajoute pas.",
+            ),
+        ],
+        ("plus-values-realisees", "twr-mwr"),
+    ),
+    "alertes-informatives": _a(
+        "Alertes informatives",
+        "suivi",
+        "Être prévenu quand un seuil est franchi — et pourquoi l'application s'arrête là.",
+        "Une alerte compare le dernier cours connu d'un instrument à un seuil que vous fixez : cours au-dessus ou en "
+        "dessous d'un niveau, ou variation quotidienne (en valeur absolue) supérieure à un pourcentage. Quand la "
+        "condition est vraie, une notification apparaît dans l'application.",
+        "Les alertes sont évaluées avec les données déjà en cache (rafraîchies par la tâche de fond au rythme "
+        "configuré, 15 minutes par défaut, uniquement pour les instruments détenus ou suivis) et quand vous ouvrez "
+        "vos notifications : aucune requête supplémentaire vers un fournisseur. Une alerte déclenchée est désactivée "
+        "(une seule notification) et peut être réarmée. La variation quotidienne compare le dernier cours à la "
+        "clôture de la veille.",
+        "Les cotations peuvent être différées (15 à 20 minutes selon la place) ou anciennes hors séance : une alerte "
+        "reflète l'état des données, pas le marché en temps réel. Aucune action n'en découle : pas d'ordre, pas de "
+        "recommandation — l'application se limite à informer. Pas d'e-mail ni de notification mobile : la "
+        "notification est visible à la prochaine ouverture.",
+        [
+            (
+                "Bon usage",
+                "Une alerte est un rappel d'aller regarder, pas un signal. Fixer un seuil ne dit rien de ce qu'il "
+                "faudrait faire s'il est atteint ; ce jugement reste le vôtre, avec les informations de la fiche.",
+            ),
+        ],
+        ("fraicheur-des-donnees", "efficience-des-marches"),
+    ),
+    "etude-de-strategie": _a(
+        "Étude de stratégie (backtest) et ses pièges",
+        "technique",
+        "Ce que vaut « j'aurais acheté quand la moyenne courte passe au-dessus de la longue » — et pourquoi il faut "
+        "s'en méfier.",
+        "La simulation historique d'une règle mécanique simple (croisement de moyennes mobiles, prix au-dessus de "
+        "sa moyenne, retour à la moyenne du RSI) sur un instrument : courbe de valeur de la règle contre « acheter "
+        "et conserver », nombre de passages, exposition, statistiques de rendement et de risque de chacune.",
+        "Le signal est calculé sur la clôture du jour t et la position (0 % ou 100 %, jamais à découvert, jamais à "
+        "levier) s'applique à partir du jour t+1 : la règle ne voit jamais le futur. Des frais proportionnels "
+        "(points de base) sont prélevés à chaque changement de position. Les deux courbes partent de 1 sur la même "
+        "période et sont comparées avec les mêmes statistiques (voir « Ratios de Sharpe, Sortino et Calmar »).",
+        "Sur-ajustement : avec assez de paramètres et de périodes essayés, on trouve toujours une règle qui « aurait "
+        "marché » ; cela ne dit rien de l'avenir. Biais de survie : l'instrument étudié existe encore. Écarts "
+        "d'exécution, liquidité, dividendes (absents des cours de clôture ajustés ou non selon la source), fiscalité "
+        "des passages fréquents : ignorés. Une règle qui bat l'indice sur une période le sous-performe souvent sur "
+        "la suivante. Rien ici n'est un signal ni une recommandation.",
+        [
+            (
+                "Règles disponibles",
+                "Croisement de moyennes (SMA rapide > SMA lente) ; prix au-dessus de sa SMA ; RSI : entrée quand le "
+                "RSI passe sous un seuil bas, sortie quand il dépasse un seuil haut.",
+            ),
+            (
+                "Comment lire le résultat",
+                "Comparez d'abord le drawdown maximal et la volatilité, pas seulement le rendement final. Regardez "
+                "le nombre de passages (chacun coûte des frais) et l'exposition (une règle peu investie rate les "
+                "hausses). Changez les paramètres de peu : si le résultat bascule, il est fragile.",
+            ),
+            (
+                "Lien avec l'efficience des marchés",
+                "Si les prix intègrent l'information disponible, une règle mécanique sur les seuls prix passés ne "
+                "devrait pas battre durablement le marché après frais — c'est ce que la majorité des études "
+                "académiques trouvent (voir « Efficience des marchés »).",
+            ),
+        ],
+        ("indicateurs-techniques", "efficience-des-marches", "sharpe-sortino-calmar"),
+    ),
+    "comparaison-base-100": _a(
+        "Comparer des instruments en base 100",
+        "technique",
+        "Mettre plusieurs cours sur un même graphique sans que les niveaux de prix brouillent la lecture.",
+        "La trajectoire relative de plusieurs instruments : chaque série est divisée par sa valeur au premier jour "
+        "commun puis multipliée par 100, de sorte que toutes partent de 100 et que l'écart lu est un rendement "
+        "cumulé.",
+        "Seules les dates présentes dans toutes les séries sont conservées (pas d'interpolation ni de report de "
+        "valeur). Chaque instrument reste dans sa propre devise.",
+        "Une série en dollars et une en euros comparent des rendements en devises différentes : l'effet de change "
+        "n'est pas neutralisé. Le point de départ change tout : décaler la fenêtre d'un mois peut inverser le "
+        "classement. Les dividendes ne sont pas réinvestis dans un cours simple.",
+        [
+            (
+                "Usage",
+                "Comparer un titre à son indice ou à un ETF de référence, ou deux ETF sur le même thème, sur une "
+                "fenêtre donnée — pour décrire, pas pour extrapoler.",
+            ),
+        ],
+        ("capm-beta", "correlation-diversification"),
     ),
 }

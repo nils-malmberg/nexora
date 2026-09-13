@@ -8,6 +8,8 @@ One schema, one Alembic history, grouped by domain:
   OhlcBar, FxRate, WatchlistItem, MarketProvider
 - News & events: Provider, ProviderFeed, NewsItem, NewsItemAsset,
   NewsItemRelation, Event, EventSource, EventStatusHistory, IngestionRun
+- Informational alerts: PriceAlert, Notification (in-app only, never an
+  action)
 - Prediction (experimental): PredictionExperiment
 
 Money is always `Numeric`, never `float` (specs/ARCHITECTURE.md). Timestamps
@@ -614,6 +616,59 @@ class IngestionRun(Base):
         CheckConstraint("status in ('running','success','partial','failed')", name="ck_run_status"),
         Index("ix_run_provider_started", "provider_id", "started_at"),
     )
+
+
+# ---------------------------------------------------------------------------
+# Informational alerts (in-app notifications, never an action)
+# ---------------------------------------------------------------------------
+
+ALERT_KINDS = ("price_above", "price_below", "move_pct")
+
+
+class PriceAlert(Base):
+    """A threshold the user wants to be told about — "informer, jamais
+    agir" (specs/ROADMAP.md: « alertes informatives »). Evaluated against the
+    *cached* observations only (worker cadence), never by polling a
+    provider. One-shot: once triggered it is deactivated and a Notification
+    is written; the user can re-arm it."""
+
+    __tablename__ = "price_alerts"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    instrument_id: Mapped[str] = mapped_column(ForeignKey("instruments.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(20))
+    # price_above / price_below: a price in the instrument's quote currency;
+    # move_pct: an absolute daily move in percent (e.g. 5 = ±5 %).
+    threshold: Mapped[float] = mapped_column(Numeric(20, 6))
+    note: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    active: Mapped[bool] = mapped_column(default=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+    triggered_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    last_evaluated_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    last_value: Mapped[float | None] = mapped_column(Numeric(20, 6), nullable=True)
+
+    instrument: Mapped[Instrument] = relationship()
+
+    __table_args__ = (CheckConstraint(f"kind in {ALERT_KINDS!r}", name="ck_alert_kind"),)
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    instrument_id: Mapped[str | None] = mapped_column(
+        ForeignKey("instruments.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    alert_id: Mapped[str | None] = mapped_column(ForeignKey("price_alerts.id", ondelete="SET NULL"), nullable=True)
+    kind: Mapped[str] = mapped_column(String(20))
+    title: Mapped[str] = mapped_column(String(200))
+    body: Mapped[str] = mapped_column(String(500))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+    read_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+
+    __table_args__ = (Index("ix_notification_user_created", "user_id", "created_at"),)
 
 
 # ---------------------------------------------------------------------------
