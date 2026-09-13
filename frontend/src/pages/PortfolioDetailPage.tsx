@@ -35,9 +35,11 @@ function toDatetimeLocal(iso: string): string {
 export function PortfolioDetailPage({
   portfolio,
   onRenamed,
+  initialTab,
 }: {
   portfolio: Portfolio;
   onRenamed: (updated: Portfolio) => void;
+  initialTab?: string;
 }) {
   const [positions, setPositions] = useState<Position[]>([]);
   const [valuation, setValuation] = useState<Valuation | null>(null);
@@ -46,7 +48,9 @@ export function PortfolioDetailPage({
   const [error, setError] = useState<string | null>(null);
   const [renaming, setRenaming] = useState(false);
   const [newName, setNewName] = useState(portfolio.name);
-  const [tab, setTab] = useState<"positions" | "transactions" | "import" | "analytics" | "quant">("positions");
+  const [tab, setTab] = useState<"positions" | "transactions" | "import" | "analytics" | "quant">(
+    initialTab === "import" || initialTab === "transactions" || initialTab === "analytics" || initialTab === "quant" ? initialTab : "positions",
+  );
   // AnalyticsSection fetches its own data independently (history/allocation/
   // risk/performance) and only depends on portfolio.id, which never changes
   // here - without this, adding a transaction or a price wouldn't ever
@@ -116,7 +120,7 @@ export function PortfolioDetailPage({
           [
             ["positions", "Positions"],
             ["transactions", "Transactions"],
-            ["import", "Import CSV"],
+            ["import", "Importer (Trade Republic, Revolut, CSV)"],
             ["analytics", "Historique & performance"],
             ["quant", "Analyse quantitative"],
           ] as const

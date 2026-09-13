@@ -83,6 +83,9 @@ class Settings(BaseSettings):
     market_fixture_path: str = "tests/fixtures/market_data/demo_quotes.json"
 
     # --- News & events (app/news) -------------------------------------------
+    # Automatic per-instrument company news through Finnhub (needs the key
+    # named by finnhub_api_key_env_var; silently off without it).
+    news_auto_company_news: bool = True
     news_freshness_minutes: int = 60
     event_freshness_minutes: int = 24 * 60
     ingestion_interval_seconds: int = 15 * 60

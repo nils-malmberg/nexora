@@ -6,15 +6,16 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy import or_, select, tuple_
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, get_db, get_visible_instrument
+from app.api.deps import get_current_user, get_db, get_visible_instrument, rate_limited, require_csrf
 from app.api.pagination import clamp_page_size, decode_cursor, encode_cursor
 from app.api.serializers import compute_list_etag, news_item_to_out
 from app.config import settings
 from app.models import NewsItem, NewsItemAsset, User
+from app.news import auto as news_auto
 from app.news.adapters.common import ALLOWED_CATEGORIES, ALLOWED_KINDS
 from app.observability.metrics import stale_responses_total
 from app.schemas.common import Page
-from app.schemas.news import NewsItemOut
+from app.schemas.news import NewsItemOut, NewsRefreshOut
 
 router = APIRouter(prefix="/api/v1/instruments", tags=["news"])
 
@@ -83,3 +84,28 @@ def list_instrument_news(
     next_cursor = encode_cursor(rows[-1].publication_at, rows[-1].id) if has_more and rows else None
     response.headers["ETag"] = etag
     return Page(items=out_items, next_cursor=next_cursor)
+
+
+@router.post("/{instrument_id}/news/refresh", response_model=NewsRefreshOut)
+def refresh_instrument_news(
+    instrument_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _csrf: None = Depends(require_csrf),
+    _rl: None = Depends(rate_limited),
+) -> NewsRefreshOut:
+    """Fetches this instrument's company news now (at most once per
+    freshness window per instrument; one provider request). The response
+    says what happened - including "no key configured" - so the page can
+    explain an empty list instead of showing nothing."""
+    instrument = get_visible_instrument(instrument_id, db, user)
+    outcome = news_auto.refresh_instrument_news(db, instrument)
+    return NewsRefreshOut(
+        status=outcome.status,
+        detail=outcome.detail,
+        items_total=outcome.items_total,
+        run_status=outcome.run_status,
+        error_code=outcome.error_code,
+        configured=news_auto.is_configured(),
+        last_collected_at=news_auto.latest_collection(db, instrument.id),
+    )

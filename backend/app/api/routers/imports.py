@@ -18,7 +18,9 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db, get_owned_portfolio, require_csrf
 from app.config import settings
+from app.domain.broker_presets import PRESET_MAPPING, PRESETS, apply_preset, describe_presets, detect_preset
 from app.domain.csv_import import (
+    SKIP_KEY,
     RowResult,
     parse_csv,
     serialize_row_result,
@@ -28,8 +30,9 @@ from app.domain.csv_import import (
     validate_batch,
 )
 from app.domain.positions import DuplicateTransactionError, apply_transaction
+from app.market import service as market_service
 from app.models import AuditEvent, ImportJob, Instrument, Portfolio, User
-from app.schemas.imports import ImportJobOut, ImportJobSummaryOut, ImportPreviewRequest, RowResultOut
+from app.schemas.imports import ImportJobOut, ImportJobSummaryOut, ImportPreviewRequest, PresetOut, RowResultOut
 from app.schemas.transactions import TransactionCreate
 
 router = APIRouter(prefix="/api/v1/portfolios/{portfolio_id}/imports", tags=["imports"])
@@ -37,6 +40,50 @@ router = APIRouter(prefix="/api/v1/portfolios/{portfolio_id}/imports", tags=["im
 # A sample is enough to sniff delimiter/encoding without reading the whole
 # (already size-capped) file twice.
 _SNIFF_SAMPLE_BYTES = 8192
+# Distinct unknown ISINs looked up through the market provider per preview:
+# one request each, well under any provider budget for a personal statement.
+_MAX_ISIN_LOOKUPS = 40
+
+
+def _effective_rows(job: ImportJob) -> tuple[list[dict[str, str]], list[str]]:
+    """Rows as the validator sees them: the broker preset (if any) rewrites
+    the original rows into the canonical schema; without a preset the
+    original rows and headers are used with the job's column mapping."""
+    raw_rows = job.raw_rows or []
+    headers = list(raw_rows[0].keys()) if raw_rows else []
+    if job.preset:
+        return apply_preset(job.preset, raw_rows, headers), list(PRESET_MAPPING.values())
+    return raw_rows, headers
+
+
+def _resolve_unknown_isins(db: Session, rows: list[dict[str, str]], column_mapping: dict[str, str]) -> dict[str, str]:
+    """Adds catalog instruments for ISINs not yet known (at most
+    _MAX_ISIN_LOOKUPS provider searches). Returns {isin: symbol} for the
+    ones resolved, so the preview can tell the user what each ISIN became."""
+    header = column_mapping.get("isin")
+    if not header:
+        return {}
+    isins = []
+    for row in rows:
+        if row.get(SKIP_KEY):
+            continue
+        value = (row.get(header) or "").strip().upper()
+        if value and value not in isins:
+            isins.append(value)
+    resolved: dict[str, str] = {}
+    lookups = 0
+    for isin in isins:
+        known = db.scalars(select(Instrument).where(Instrument.isin == isin)).first()
+        if known is not None:
+            resolved[isin] = known.symbol
+            continue
+        if lookups >= _MAX_ISIN_LOOKUPS:
+            break
+        lookups += 1
+        instrument = market_service.resolve_isin(db, isin)
+        if instrument is not None:
+            resolved[isin] = instrument.symbol
+    return resolved
 
 
 def _get_owned_job(job_id: str, portfolio: Portfolio, db: Session) -> ImportJob:
@@ -52,11 +99,16 @@ def _row_results_out(rows: list[dict] | None) -> list[RowResultOut] | None:
     return [RowResultOut(**row) for row in rows]
 
 
-def _job_out(job: ImportJob, *, headers=None, suggested_mapping=None, sample_rows=None) -> ImportJobOut:
+def _job_out(
+    job: ImportJob, *, headers=None, suggested_mapping=None, sample_rows=None, resolved_isins=None
+) -> ImportJobOut:
     return ImportJobOut(
         id=job.id,
         filename=job.filename,
         status=job.status,
+        preset=job.preset,
+        preset_label=PRESETS[job.preset].label if job.preset else None,
+        resolved_isins=resolved_isins,
         total_rows=job.total_rows,
         valid_count=job.valid_count,
         duplicate_count=job.duplicate_count,
@@ -110,13 +162,15 @@ async def upload_import(
             status_code=413, detail=f"file has {len(rows)} rows, exceeding the {settings.csv_import_max_rows} limit"
         )
 
-    suggested_mapping = suggest_column_mapping(headers)
+    preset = detect_preset(headers)
+    suggested_mapping = dict(PRESET_MAPPING) if preset else suggest_column_mapping(headers)
 
     job = ImportJob(
         portfolio_id=portfolio.id,
         user_id=user.id,
         filename=file.filename or "import.csv",
         status="draft",
+        preset=preset.key if preset else None,
         delimiter=delimiter,
         encoding=encoding,
         column_mapping=suggested_mapping,
@@ -130,12 +184,19 @@ async def upload_import(
             portfolio_id=portfolio.id,
             action="import.upload",
             target_type="import_job",
-            event_metadata={"filename": job.filename, "total_rows": job.total_rows},
+            event_metadata={"filename": job.filename, "total_rows": job.total_rows, "preset": job.preset},
         )
     )
     db.commit()
 
-    return _job_out(job, headers=headers, suggested_mapping=suggested_mapping, sample_rows=rows[:5])
+    effective_rows, effective_headers = _effective_rows(job)
+    return _job_out(job, headers=effective_headers, suggested_mapping=suggested_mapping, sample_rows=effective_rows[:5])
+
+
+@router.get("/presets", response_model=list[PresetOut])
+def list_presets(user: User = Depends(get_current_user)) -> list[PresetOut]:
+    """Supported broker export formats and how to obtain each file."""
+    return [PresetOut(**p) for p in describe_presets()]
 
 
 @router.get("", response_model=list[ImportJobSummaryOut])
@@ -184,8 +245,14 @@ def preview_import(
     if job.raw_rows is None:
         raise HTTPException(status_code=409, detail="raw rows are no longer available for this job")
 
-    column_mapping = payload.column_mapping or job.column_mapping
-    results = validate_batch(db, portfolio, job.raw_rows, column_mapping, payload.default_timezone)
+    if payload.preset is not None:
+        if payload.preset and payload.preset not in PRESETS:
+            raise HTTPException(status_code=422, detail="unknown preset")
+        job.preset = payload.preset or None
+    rows, headers = _effective_rows(job)
+    column_mapping = dict(PRESET_MAPPING) if job.preset else (payload.column_mapping or job.column_mapping)
+    resolved_isins = _resolve_unknown_isins(db, rows, column_mapping)
+    results = validate_batch(db, portfolio, rows, column_mapping, payload.default_timezone)
 
     job.column_mapping = column_mapping
     job.default_timezone = payload.default_timezone
@@ -198,7 +265,7 @@ def preview_import(
     job.previewed_at = datetime.now(UTC)
     db.commit()
 
-    return _job_out(job)
+    return _job_out(job, headers=headers, sample_rows=rows[:5], resolved_isins=resolved_isins)
 
 
 def _resolve_or_create_instrument(
@@ -254,7 +321,9 @@ def commit_import(
     if job.raw_rows is None:
         raise HTTPException(status_code=409, detail="nothing to commit (raw rows unavailable)")
 
-    results = validate_batch(db, portfolio, job.raw_rows, job.column_mapping, job.default_timezone)
+    rows, _headers = _effective_rows(job)
+    _resolve_unknown_isins(db, rows, job.column_mapping)
+    results = validate_batch(db, portfolio, rows, job.column_mapping, job.default_timezone)
     instrument_cache: dict[str, Instrument] = {}
     inserted = 0
 
@@ -279,6 +348,7 @@ def commit_import(
                     fees=canonical.get("fees", Decimal("0")),
                     account=canonical.get("account"),
                     external_id=canonical.get("external_id"),
+                    note=(canonical.get("note") or None),
                     method="Import CSV" if canonical["type"] == "valorisation_privee" else None,
                 )
                 apply_transaction(db, portfolio, instrument, payload)

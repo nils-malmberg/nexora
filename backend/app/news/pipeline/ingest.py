@@ -264,7 +264,10 @@ def _upsert_event(db: Session, normalized: NormalizedEvent, counts: dict) -> Non
     counts["event_updated"] += 1
 
 
-def run_provider(db: Session, provider: Provider) -> IngestionRun:
+def run_provider(db: Session, provider: Provider, feeds: list | None = None) -> IngestionRun:
+    """Runs every feed of the provider, or only `feeds` (a subset of
+    provider.feeds — used to refresh one instrument's company news on demand,
+    or to skip feeds of instruments nobody tracks any more)."""
     now = datetime.now(UTC)
     run = IngestionRun(id=new_id(), provider_id=provider.id, started_at=now, status="running", counts={})
     db.add(run)
@@ -297,7 +300,7 @@ def run_provider(db: Session, provider: Provider) -> IngestionRun:
     any_feed_failed = False
     any_feed_succeeded = False
 
-    for feed in provider.feeds:
+    for feed in provider.feeds if feeds is None else feeds:
         try:
             fetch_result = call_with_retries(
                 lambda f=feed: adapter.fetch(f.url, f.extra_config, provider.last_success_at)

@@ -17,6 +17,7 @@ import type {
   History,
   ImportJob,
   ImportJobSummary,
+  ImportPreset,
   Indicators,
   IngestionRun,
   Instrument,
@@ -25,6 +26,7 @@ import type {
   MonteCarloResult,
   NewsItem,
   NewsProviderStatus,
+  NewsRefresh,
   OverviewEntry,
   Page,
   Performance,
@@ -321,11 +323,20 @@ export function listImports(portfolioId: string): Promise<ImportJobSummary[]> {
 export function getImport(portfolioId: string, jobId: string): Promise<ImportJob> {
   return request(`/api/v1/portfolios/${portfolioId}/imports/${jobId}`);
 }
-export function previewImport(portfolioId: string, jobId: string, columnMapping: Record<string, string>, defaultTimezone = "UTC"): Promise<ImportJob> {
+export function previewImport(
+  portfolioId: string,
+  jobId: string,
+  columnMapping: Record<string, string>,
+  defaultTimezone = "UTC",
+  preset?: string | null,
+): Promise<ImportJob> {
   return request(`/api/v1/portfolios/${portfolioId}/imports/${jobId}/preview`, {
     method: "POST",
-    body: { column_mapping: columnMapping, default_timezone: defaultTimezone },
+    body: { column_mapping: columnMapping, default_timezone: defaultTimezone, preset: preset === undefined ? null : preset },
   });
+}
+export function listImportPresets(): Promise<ImportPreset[]> {
+  return request("/api/v1/portfolios/_/imports/presets");
 }
 export function commitImport(portfolioId: string, jobId: string): Promise<ImportJob> {
   return request(`/api/v1/portfolios/${portfolioId}/imports/${jobId}/commit`, { method: "POST" });
@@ -385,6 +396,9 @@ export function listInstrumentNews(
   options: { category?: string; kind?: string; cursor?: string; limit?: number; q?: string } = {},
 ): Promise<Page<NewsItem>> {
   return request(`/api/v1/instruments/${instrumentId}/news`, { params: options });
+}
+export function refreshInstrumentNews(instrumentId: string): Promise<NewsRefresh> {
+  return request(`/api/v1/instruments/${instrumentId}/news/refresh`, { method: "POST" });
 }
 export function getInstrumentTimeline(instrumentId: string, options: { granularity?: string; category?: string } = {}): Promise<TimelineEntry[]> {
   return request(`/api/v1/instruments/${instrumentId}/timeline`, { params: options });

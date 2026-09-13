@@ -125,7 +125,17 @@ export function SettingsPage({ user, onAccountDeleted, onUserUpdated }: { user: 
                   {n.license_note && <div className="muted">{n.license_note}</div>}
                 </li>
               ))}
-              {providers.news.length === 0 && <li className="muted">Aucune source d'actualités configurée (voir backend/scripts/ et Paramètres › Administration).</li>}
+              <li>
+                <strong>Actualités par société</strong> : {providers.auto_news.provider} — {providers.auto_news.configured ? "configuré" : "non configuré"}
+                <div className="muted">{providers.auto_news.detail}</div>
+                {!providers.auto_news.configured && (
+                  <div className="muted">
+                    Créez un compte gratuit sur finnhub.io, copiez la clé API dans <code>{providers.auto_news.env_var}=…</code> du fichier <code>.env</code>, puis
+                    redémarrez (<code>docker compose up -d</code>). Les feeds sont créés automatiquement pour chaque action ou ETF suivi.
+                  </div>
+                )}
+              </li>
+              {providers.news.length === 0 && <li className="muted">Aucune autre source d'actualités configurée (flux RSS/ICS : voir Paramètres › Administration).</li>}
             </ul>
             <p className="muted">
               Cotations rafraîchies au plus toutes les {providers.quote_freshness_minutes} minutes. Module de prédiction : {providers.prediction_enabled ? "activé" : "désactivé"}.

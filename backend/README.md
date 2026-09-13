@@ -16,7 +16,7 @@ cd backend
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 alembic upgrade head          # SQLite local par défaut (./nexora.db), aucune base externe requise
-pytest tests -q               # 310 tests, tous hors ligne (fournisseurs "fixture", respx pour le HTTP)
+pytest tests -q               # 325 tests, tous hors ligne (fournisseurs "fixture", respx pour le HTTP)
 uvicorn app.api.main:app --reload --port 8000
 python -m app.worker.scheduler   # optionnel : rafraîchissement périodique marché + actualités
 ```
@@ -31,11 +31,13 @@ app/api/            routeurs HTTP (auth, me, portfolios, instruments, market, im
                     news, timeline, events, education, prediction, providers, admin), deps, erreurs
 app/domain/         règles métier pures : positions FIFO + valorisation (positions.py), FX (fx.py),
                     analyse Phase 2 (analytics.py), boîte à outils quantitative (quant.py), import CSV
+                    (csv_import.py) et profils d'export courtier Trade Republic / Revolut (broker_presets.py)
 app/market/         fournisseurs de marché interchangeables : contrat (base.py), yahoo, coingecko,
                     finnhub, frankfurter, fixture/null ; budget de requêtes (ratelimit.py), HTTP
                     commun (http.py), sélection + disjoncteur (registry.py), service cache-first
 app/news/           pipeline Actualités & Événements (adaptateurs RSS/JSON/ICS, dédoublonnage,
-                    scoring, résumé) — inchangé fonctionnellement, rattaché aux instruments
+                    scoring, résumé) rattaché aux instruments ; auto.py crée et rafraîchit un feed
+                    Finnhub « company-news » par action/ETF suivi (clé FINNHUB_API_KEY)
 app/prediction/     moteur expérimental (engine.py : jeu de données sans fuite, walk-forward,
                     métamodèle) et service d'exécution
 app/education_content.py   contenu d'aide versionné (17 articles)
@@ -86,6 +88,28 @@ Protection des quotas — et de votre adresse IP :
 
 Aucun test n'appelle un fournisseur réel : la suite force les adaptateurs `fixture`/`null` et
 intercepte le HTTP avec `respx` (tests de contrat sur des charges utiles enregistrées).
+
+## Imports courtier (specs/PORTFOLIO_IMPORTS.md)
+
+Aucun connecteur avec identifiants : un export de l'application est importé. `broker_presets.py`
+reconnaît le relevé Revolut (`Date, Ticker, Type, Quantity, Price per share, Total Amount,
+Currency, FX Rate`) et l'export Trade Republic (`Datum/Date, Typ/Type, Wert/Value, Notiz/Note,
+ISIN, Anzahl/Shares, Gebühren/Fees, Steuern/Tax`) d'après les en-têtes, convertit les libellés
+(achat/vente/dividende/intérêts/frais/dépôt/retrait), les montants avec symbole monétaire et les
+dates locales, et signale ce qu'il ne sait pas convertir (split sans ratio) au lieu de le deviner.
+Les ISIN sont résolus dans le catalogue, ou par une recherche fournisseur (une requête par ISIN
+inconnu, plafonnée à 40 par aperçu, échecs mémorisés une heure). Deux nouveaux types de
+transaction, `interet` et `frais`, sont des mouvements de trésorerie internes (pas des flux
+externes pour le TWR/MWR).
+
+## Actualités automatiques
+
+`app/news/auto.py` : pour chaque action/ETF du catalogue, un feed Finnhub `company-news` est créé
+à la première ouverture de l'onglet Actualités (ou par le worker pour les titres détenus/suivis),
+rafraîchi à la demande au plus une fois par `NEXORA_NEWS_FRESHNESS_MINUTES` et par le worker
+uniquement pour les instruments suivis. Chaque appel consomme le budget `finnhub` ; les erreurs
+4xx (clé invalide) ne sont pas re-tentées ; sans clé, `POST /instruments/{id}/news/refresh`
+répond `not_configured` et l'interface explique quoi faire.
 
 ## Valorisation et FX
 

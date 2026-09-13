@@ -24,6 +24,7 @@ from app.config import settings
 from app.db import SessionLocal
 from app.market import service as market_service
 from app.models import Provider
+from app.news.auto import ensure_feeds_for_tracked, feeds_to_refresh
 from app.news.pipeline.ingest import run_provider
 from app.observability.logging import configure_logging, get_logger, log_event
 
@@ -33,10 +34,17 @@ logger = get_logger(__name__)
 def run_all_enabled_providers() -> None:
     db = SessionLocal()
     try:
+        try:
+            ensure_feeds_for_tracked(db)
+        except Exception:
+            logger.exception("unhandled error preparing automatic news feeds")
         providers = db.scalars(select(Provider).where(Provider.enabled.is_(True))).all()
         for provider in providers:
             try:
-                run = run_provider(db, provider)
+                feeds = feeds_to_refresh(db, provider)
+                if feeds is not None and not feeds:
+                    continue  # automatic company news: nothing tracked, nothing to fetch
+                run = run_provider(db, provider, feeds=feeds)
                 log_event(
                     logger,
                     20,

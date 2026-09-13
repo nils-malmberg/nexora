@@ -189,7 +189,7 @@ export interface Portfolio {
   updated_at: string;
 }
 
-export const TRANSACTION_TYPES = ["achat", "vente", "dividende", "coupon", "depot", "retrait", "split"] as const;
+export const TRANSACTION_TYPES = ["achat", "vente", "dividende", "coupon", "interet", "frais", "depot", "retrait", "split"] as const;
 export type TransactionType = (typeof TRANSACTION_TYPES)[number];
 
 export const TRANSACTION_TYPE_LABELS: Record<TransactionType, string> = {
@@ -197,12 +197,15 @@ export const TRANSACTION_TYPE_LABELS: Record<TransactionType, string> = {
   vente: "Vente",
   dividende: "Dividende",
   coupon: "Coupon",
+  interet: "Intérêts",
+  frais: "Frais",
   depot: "Dépôt",
   retrait: "Retrait",
   split: "Split",
 };
 
-export const CASH_ONLY_TRANSACTION_TYPES: TransactionType[] = ["depot", "retrait"];
+/** No instrument, quantity fixed to 1, unit_price carries the amount. */
+export const CASH_ONLY_TRANSACTION_TYPES: TransactionType[] = ["interet", "frais", "depot", "retrait"];
 
 export interface Transaction {
   id: string;
@@ -291,6 +294,8 @@ export interface ImportJobSummary {
 }
 
 export interface ImportJob extends ImportJobSummary {
+  preset: string | null;
+  preset_label: string | null;
   delimiter: string;
   encoding: string;
   column_mapping: Record<string, string>;
@@ -298,12 +303,21 @@ export interface ImportJob extends ImportJobSummary {
   headers: string[] | null;
   sample_rows: Record<string, string>[] | null;
   rows: RowResult[] | null;
+  resolved_isins: Record<string, string> | null;
+}
+
+export interface ImportPreset {
+  key: string;
+  label: string;
+  instructions: string[];
+  notes: string[];
 }
 
 export const CANONICAL_IMPORT_FIELDS = [
   "date",
   "type",
   "symbol",
+  "isin",
   "asset_class",
   "quantity",
   "unit_price",
@@ -311,6 +325,7 @@ export const CANONICAL_IMPORT_FIELDS = [
   "fees",
   "account",
   "external_id",
+  "note",
 ] as const;
 
 // ---------------------------------------------------------------------------
@@ -645,11 +660,29 @@ export interface MarketProviderPublic {
   capabilities: Record<string, unknown>;
 }
 
+export interface AutoNewsStatus {
+  provider: string;
+  configured: boolean;
+  env_var: string;
+  detail: string;
+}
+
 export interface ProvidersOverview {
   market: MarketProviderPublic[];
   news: NewsProviderStatus[];
+  auto_news: AutoNewsStatus;
   prediction_enabled: boolean;
   quote_freshness_minutes: number;
+}
+
+export interface NewsRefresh {
+  status: "refreshed" | "cached" | "not_configured" | "not_eligible" | "rate_limited" | "provider_disabled" | "failed";
+  detail: string | null;
+  items_total: number;
+  run_status: string | null;
+  error_code: string | null;
+  configured: boolean;
+  last_collected_at: string | null;
 }
 
 export interface MarketProviderState {

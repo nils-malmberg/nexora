@@ -4,7 +4,7 @@ import { href, navigate } from "../router";
 import type { Portfolio } from "../types";
 import { PortfolioDetailPage } from "./PortfolioDetailPage";
 
-export function PortfoliosPage({ selectedId: routeSelectedId }: { selectedId?: string }) {
+export function PortfoliosPage({ selectedId: routeSelectedId, initialTab }: { selectedId?: string; initialTab?: string }) {
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [selectedId, setSelectedIdState] = useState<string | null>(routeSelectedId ?? null);
   const setSelectedId = (id: string | null) => {
@@ -21,7 +21,7 @@ export function PortfoliosPage({ selectedId: routeSelectedId }: { selectedId?: s
     listPortfolios()
       .then((list) => {
         setPortfolios(list);
-        if (!selectedId && list.length > 0) setSelectedId(list[0].id);
+        if (!selectedId && list.length > 0) setSelectedIdState(list[0].id); // auto-select without touching the URL (keeps ?tab=)
       })
       .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Erreur de chargement"))
       .finally(() => setLoading(false));
@@ -95,11 +95,16 @@ export function PortfoliosPage({ selectedId: routeSelectedId }: { selectedId?: s
         <div className="portfolio-main">
           {selectedId ? (
             <PortfolioDetailPage
+              key={selectedId}
               portfolio={portfolios.find((p) => p.id === selectedId)!}
+              initialTab={initialTab}
               onRenamed={(updated) => setPortfolios((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))}
             />
           ) : (
-            <p className="empty-state">Sélectionnez ou créez un portefeuille pour commencer.</p>
+            <p className="empty-state">
+              Créez d'abord un portefeuille (par exemple « Trade Republic » ou « Revolut ») avec le formulaire ci-contre, puis importez l'export de
+              l'application dans son onglet « Importer ».
+            </p>
           )}
         </div>
       </div>

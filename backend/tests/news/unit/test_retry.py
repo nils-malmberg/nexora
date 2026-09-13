@@ -64,3 +64,31 @@ def test_parse_error_is_not_retried():
     with pytest.raises(AdapterParseError):
         call_with_retries(fn, max_retries=5, sleep=lambda s: None)
     assert calls["n"] == 1
+
+
+def test_client_errors_are_not_retried():
+    from app.news.adapters.base import AdapterHTTPError
+
+    calls = []
+
+    def fn():
+        calls.append(1)
+        raise AdapterHTTPError("HTTP 401", status_code=401)
+
+    with pytest.raises(RetriesExhausted):
+        call_with_retries(fn, max_retries=3, sleep=lambda s: None)
+    assert len(calls) == 1  # an invalid key fails identically every time: one request, not four
+
+
+def test_server_errors_are_still_retried():
+    from app.news.adapters.base import AdapterHTTPError
+
+    calls = []
+
+    def fn():
+        calls.append(1)
+        raise AdapterHTTPError("HTTP 503", status_code=503)
+
+    with pytest.raises(RetriesExhausted):
+        call_with_retries(fn, max_retries=2, sleep=lambda s: None)
+    assert len(calls) == 3

@@ -64,8 +64,16 @@ class MarketProviderPublicOut(BaseModel):
     capabilities: dict
 
 
+class AutoNewsOut(BaseModel):
+    provider: str
+    configured: bool
+    env_var: str
+    detail: str
+
+
 class ProvidersOverviewOut(BaseModel):
     market: list[MarketProviderPublicOut]
     news: list[ProviderStatusOut]
+    auto_news: AutoNewsOut
     prediction_enabled: bool
     quote_freshness_minutes: int

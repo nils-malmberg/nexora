@@ -23,9 +23,20 @@ from pydantic import BaseModel, Field, model_validator
 
 from app.models import CASH_ONLY_TRANSACTION_TYPES
 
-SUPPORTED_API_TYPES = ("achat", "vente", "dividende", "coupon", "depot", "retrait", "split", "valorisation_privee")
+SUPPORTED_API_TYPES = (
+    "achat",
+    "vente",
+    "dividende",
+    "coupon",
+    "interet",
+    "frais",
+    "depot",
+    "retrait",
+    "split",
+    "valorisation_privee",
+)
 INSTRUMENT_REQUIRED_TYPES = ("achat", "vente", "dividende", "coupon", "split", "valorisation_privee")
-CASH_ONLY_NO_INSTRUMENT_TYPES = ("depot", "retrait")
+CASH_ONLY_NO_INSTRUMENT_TYPES = ("interet", "frais", "depot", "retrait")
 SINGLE_QUANTITY_TYPES = (*CASH_ONLY_TRANSACTION_TYPES, "valorisation_privee")
 
 

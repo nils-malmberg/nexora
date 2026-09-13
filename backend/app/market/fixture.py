@@ -74,7 +74,8 @@ class FixtureProvider(MarketDataProvider):
         q = query.lower()
         out = []
         for symbol, entry in self._data.items():
-            if q in symbol.lower() or q in str(entry.get("name", "")).lower():
+            isin = str(entry.get("isin", "")).lower()
+            if q in symbol.lower() or q in str(entry.get("name", "")).lower() or (isin and q == isin):
                 out.append(
                     SearchResult(
                         symbol=symbol,
@@ -84,6 +85,7 @@ class FixtureProvider(MarketDataProvider):
                         provider_symbol=symbol,
                         currency=entry.get("currency"),
                         exchange=entry.get("exchange"),
+                        isin=entry.get("isin"),
                     )
                 )
         return out[:limit]

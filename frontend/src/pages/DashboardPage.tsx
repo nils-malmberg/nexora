@@ -61,10 +61,31 @@ export function DashboardPage({ user }: { user: User }) {
       <h2>Bonjour{user.display_name ? ` ${user.display_name}` : ""}</h2>
       {error && <p className="error-state">{error}</p>}
 
+      {cards.length === 0 && overview.length === 0 && (
+        <section className="onboarding" aria-label="Pour commencer">
+          <h3>Pour commencer</h3>
+          <div className="card-grid">
+            <a className="card card-link" href={href("portfolios") + "?tab=import"}>
+              <h4>1. Importer mon courtier</h4>
+              <p className="muted">Trade Republic, Revolut ou tout CSV : exportez l'historique depuis l'app, importez-le ici. Rien n'est écrit avant votre confirmation.</p>
+            </a>
+            <a className="card card-link" href={href("markets")}>
+              <h4>2. Chercher un titre</h4>
+              <p className="muted">Actions, ETF, indices, crypto : cours, chandeliers, indicateurs, actualités, puis « Ajouter au portefeuille » ou « Suivre ».</p>
+            </a>
+            <a className="card card-link" href={href("help")}>
+              <h4>3. Comprendre les chiffres</h4>
+              <p className="muted">Chaque mesure renvoie à l'aide : valorisation, TWR/MWR, Sharpe, VaR, Markowitz, indicateurs, prédiction.</p>
+            </a>
+          </div>
+        </section>
+      )}
+
       <h3>Portefeuilles</h3>
       {cards.length === 0 ? (
         <p className="empty-state">
-          Aucun portefeuille. <a href={href("markets")}>Cherchez un instrument</a> et ajoutez-le, ou <a href={href("portfolios")}>créez un portefeuille</a> et importez un CSV.
+          Aucun portefeuille. <a href={href("portfolios") + "?tab=import"}>Importez votre courtier</a>, <a href={href("markets")}>cherchez un instrument</a> ou{" "}
+          <a href={href("portfolios")}>créez un portefeuille</a>.
         </p>
       ) : (
         <div className="card-grid">

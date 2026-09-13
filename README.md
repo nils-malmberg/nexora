@@ -9,14 +9,16 @@ actions, ETF, indices, crypto-actifs, obligations et actifs privés.
   suivi et **ajout au portefeuille en un clic** (enregistrement d'un achat — jamais un ordre).
 - **Portefeuilles** : transactions immuables (annulation auditée), positions FIFO, coût de revient
   et plus-values latentes, valorisation dans la devise de référence avec taux de change BCE datés,
-  import CSV assisté (aperçu, mapping, erreurs par ligne, déduplication), historique,
+  **import des exports Trade Republic et Revolut** (format reconnu automatiquement, titres retrouvés
+  par ISIN) ou de tout CSV (aperçu, mapping, erreurs par ligne, déduplication), historique,
   allocation, TWR/MWR.
 - **Analyse** : statistiques de rendement et de risque (volatilité, Sharpe, Sortino, Calmar,
   asymétrie, kurtosis), drawdown, VaR/CVaR (historique, gaussienne, Cornish-Fisher), MEDAF (bêta,
   alpha, R²), matrice de corrélation, frontière efficiente de Markowitz, simulations de Monte
   Carlo — chaque mesure avec méthode, période et limites.
-- **Actualités & événements** : faits, synthèses et estimations sourcés par instrument,
-  chronologie et calendrier (pipeline d'ingestion RSS/JSON/ICS avec dédoublonnage et scoring).
+- **Actualités & événements** : actualités par société récupérées automatiquement (Finnhub, clé
+  gratuite) pour chaque action ou ETF suivi, plus flux RSS/JSON/ICS configurables ; chronologie et
+  calendrier, dédoublonnage et scoring.
 - **Aide** : 17 articles sur la théorie derrière chaque chiffre (valorisation, FIFO, TWR/MWR,
   ratios, VaR, MEDAF, Markowitz, efficience des marchés, indicateurs techniques, walk-forward,
   métamodèles…), consultables depuis chaque écran.
@@ -58,6 +60,16 @@ NEXORA_MARKET_FX_PROVIDER=fixture docker compose --profile demo up --build
 > `portfolio-backend` Portefeuille) et leurs bases `nexora` / `nexora_portfolio` sont remplacés par
 > ce schéma unifié, sans chemin de migration automatique. Repartez d'un volume vide
 > (`docker compose down -v`) puis relancez.
+
+## Suivre un compte Trade Republic ou Revolut
+
+Ces courtiers n'offrent pas d'API de lecture pour un compte personnel ; les « connecteurs » non
+officiels exigent vos identifiants et votre 2FA et donnent un accès complet au compte, ce que
+`specs/PORTFOLIO_IMPORTS.md` et `specs/SECURITY.md` excluent. La voie retenue est l'export de
+l'application (Revolut : relevé du compte titres en CSV ; Trade Republic : export des transactions
+en CSV), importé dans NeXora : le format est reconnu d'après les colonnes, les types d'opération
+sont convertis, les titres sont retrouvés par ISIN ou symbole, chaque ligne est vérifiée et rien
+n'est écrit avant confirmation. Un nouvel export importé plus tard ne crée pas de doublons.
 
 ## Données de marché et respect des fournisseurs
 

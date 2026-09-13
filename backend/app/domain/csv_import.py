@@ -50,6 +50,7 @@ CANONICAL_FIELDS = (
     "date",
     "type",
     "symbol",
+    "isin",
     "asset_class",
     "quantity",
     "unit_price",
@@ -57,22 +58,69 @@ CANONICAL_FIELDS = (
     "fees",
     "account",
     "external_id",
+    "note",
 )
 
+# Rows a broker preset could not express as a transaction (a stock split
+# without a ratio, an unknown label) carry this key with an explanation: they
+# are reported, never silently dropped nor guessed.
+SKIP_KEY = "__skip__"
+
 _SYNONYMS: dict[str, set[str]] = {
-    "date": {"date", "trade_date", "date_operation", "date_transaction", "jour"},
-    "type": {"type", "type_transaction", "operation", "nature"},
-    "symbol": {"symbol", "ticker", "isin", "titre", "valeur"},
+    "date": {"date", "trade_date", "date_operation", "date_transaction", "jour", "datum"},
+    "type": {"type", "type_transaction", "operation", "nature", "typ"},
+    "symbol": {"symbol", "ticker", "titre", "valeur", "symbole"},
+    "isin": {"isin"},
     "asset_class": {"asset_class", "classe_actif", "classe_d_actif", "categorie"},
-    "quantity": {"quantity", "quantite", "qty", "nombre"},
+    "quantity": {"quantity", "quantite", "qty", "nombre", "anzahl", "shares"},
     "unit_price": {"unit_price", "prix_unitaire", "prix", "montant", "amount", "cours"},
-    "currency": {"currency", "devise"},
-    "fees": {"fees", "frais", "commission"},
+    "currency": {"currency", "devise", "wahrung"},
+    "fees": {"fees", "frais", "commission", "gebuhren"},
     "account": {"account", "compte"},
     "external_id": {"external_id", "id_externe", "reference", "ref", "id"},
+    "note": {"note", "notiz", "commentaire", "description"},
 }
 
-_DATE_FORMATS = ("%Y-%m-%d", "%d/%m/%Y", "%Y-%m-%d %H:%M:%S", "%d/%m/%Y %H:%M", "%m/%d/%Y")
+# Common broker/bank labels -> our transaction types (after _normalize_token).
+_TYPE_ALIASES: dict[str, str] = {
+    "buy": "achat",
+    "purchase": "achat",
+    "kauf": "achat",
+    "sparplan": "achat",
+    "savings_plan": "achat",
+    "plan_d_epargne": "achat",
+    "sell": "vente",
+    "verkauf": "vente",
+    "dividend": "dividende",
+    "interest": "interet",
+    "interets": "interet",
+    "zinsen": "interet",
+    "fee": "frais",
+    "fees": "frais",
+    "gebuhren": "frais",
+    "deposit": "depot",
+    "einzahlung": "depot",
+    "cash_top_up": "depot",
+    "top_up": "depot",
+    "withdrawal": "retrait",
+    "auszahlung": "retrait",
+    "cash_withdrawal": "retrait",
+    "stock_split": "split",
+    "aktiensplit": "split",
+    "transfer": "transfert",
+}
+
+_DATE_FORMATS = (
+    "%Y-%m-%d",
+    "%d/%m/%Y",
+    "%Y-%m-%d %H:%M:%S",
+    "%d/%m/%Y %H:%M",
+    "%d/%m/%Y %H:%M:%S",
+    "%d.%m.%Y",
+    "%d.%m.%Y %H:%M",
+    "%d.%m.%Y %H:%M:%S",
+    "%m/%d/%Y",
+)
 
 
 def _normalize_token(value: str) -> str:
@@ -243,7 +291,8 @@ def _canonicalize(
     canonical: dict[str, Any] = {}
 
     raw_type = get("type")
-    canonical["type"] = _normalize_token(raw_type) if raw_type else None
+    type_token = _normalize_token(raw_type) if raw_type else None
+    canonical["type"] = _TYPE_ALIASES.get(type_token, type_token) if type_token else None
 
     raw_date = get("date")
     if not raw_date:
@@ -267,12 +316,16 @@ def _canonicalize(
 
     symbol = get("symbol")
     canonical["symbol"] = symbol.upper() if symbol else None
+    isin = get("isin")
+    canonical["isin"] = isin.upper().replace(" ", "") if isin else None
     asset_class = get("asset_class")
     canonical["asset_class"] = _normalize_token(asset_class) if asset_class else None
     currency = get("currency")
     canonical["currency"] = currency.upper() if currency else None
     canonical["account"] = get("account")
     canonical["external_id"] = get("external_id")
+    note = get("note")
+    canonical["note"] = note[:500] if note else None
 
     return canonical, errors
 
@@ -288,12 +341,15 @@ def validate_batch(
     # Shared catalog entries first, then the user's own (which win on a
     # symbol clash: a private "AAPL" the user defined is what *their* CSV means).
     existing_instruments: dict[str, Instrument] = {}
+    existing_by_isin: dict[str, Instrument] = {}
     for instrument in db.scalars(
         select(Instrument)
         .where((Instrument.user_id.is_(None)) | (Instrument.user_id == portfolio.user_id))
         .order_by(Instrument.user_id.is_(None).desc())
     ):
         existing_instruments[instrument.symbol] = instrument
+        if instrument.isin:
+            existing_by_isin[instrument.isin.upper()] = instrument
     existing_external_ids = set(
         db.scalars(
             select(Transaction.external_id).where(
@@ -325,6 +381,9 @@ def validate_batch(
     results: list[RowResult] = []
 
     for row_number, raw_row in enumerate(raw_rows, start=1):
+        if raw_row.get(SKIP_KEY):
+            results.append(RowResult(row_number, "error", [f"ligne ignorée : {raw_row[SKIP_KEY]}"], None))
+            continue
         canonical, parse_errors = _canonicalize(raw_row, column_mapping, default_timezone)
         if parse_errors:
             results.append(RowResult(row_number, "error", parse_errors, canonical))
@@ -372,9 +431,29 @@ def validate_batch(
         messages: list[str] = []
         if row_type in INSTRUMENT_REQUIRED_TYPES:
             symbol = canonical.get("symbol")
-            instrument = existing_instruments.get(symbol) if symbol else None
+            isin = canonical.get("isin")
+            # ISIN is the most reliable key (broker exports rarely carry a
+            # ticker); a symbol match comes second.
+            instrument = existing_by_isin.get(isin) if isin else None
+            if instrument is None and symbol:
+                instrument = existing_instruments.get(symbol)
             if instrument is not None:
                 instrument_key = instrument.id
+                canonical["symbol"] = instrument.symbol
+                symbol = instrument.symbol
+            elif isin and not symbol:
+                results.append(
+                    RowResult(
+                        row_number,
+                        "error",
+                        [
+                            f"ISIN {isin} introuvable dans le catalogue : recherchez ce titre dans « Marchés » "
+                            "(la recherche accepte un ISIN) puis relancez l'aperçu"
+                        ],
+                        canonical,
+                    )
+                )
+                continue
             elif symbol in pending_instruments:
                 # Already introduced by an earlier row in this same batch -
                 # later rows for the same new symbol don't need to repeat

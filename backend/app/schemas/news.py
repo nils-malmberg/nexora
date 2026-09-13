@@ -40,3 +40,13 @@ class NewsItemOut(BaseModel):
     corroborated_by: list[RelatedItemRef]
 
     model_config = {"from_attributes": True}
+
+
+class NewsRefreshOut(BaseModel):
+    status: str  # refreshed | cached | not_configured | not_eligible | rate_limited | provider_disabled | failed
+    detail: str | None
+    items_total: int
+    run_status: str | None
+    error_code: str | None
+    configured: bool
+    last_collected_at: datetime | None

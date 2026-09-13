@@ -75,9 +75,9 @@ def cash_delta(tx: Transaction) -> Decimal:
         effect = -(quantity * unit_price)
     elif tx.type == "vente":
         effect = quantity * unit_price
-    elif tx.type in ("dividende", "coupon", "depot"):
+    elif tx.type in ("dividende", "coupon", "interet", "depot"):
         effect = unit_price
-    elif tx.type == "retrait":
+    elif tx.type in ("retrait", "frais"):
         effect = -unit_price
     else:  # transfert, split, valorisation_privee: no direct cash effect
         effect = Decimal("0")

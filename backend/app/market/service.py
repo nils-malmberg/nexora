@@ -15,6 +15,7 @@ the caller gets the last known data plus an explicit status
 from __future__ import annotations
 
 import logging
+import re
 import threading
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -42,6 +43,7 @@ from app.observability.metrics import market_cache_hits_total, market_quote_age_
 logger = get_logger(__name__)
 
 _search_cache = TTLCache(ttl_seconds=600)
+_isin_misses = TTLCache(ttl_seconds=3600, max_entries=2048)
 _history_marks = TTLCache(ttl_seconds=settings.market_refresh_interval_seconds, max_entries=4096)
 _fx_marks = TTLCache(ttl_seconds=settings.market_refresh_interval_seconds, max_entries=1024)
 
@@ -64,6 +66,7 @@ def _lock_for(key: str) -> threading.Lock:
 def reset_caches() -> None:
     """Test-only."""
     _search_cache.clear()
+    _isin_misses.clear()
     _history_marks.clear()
     _fx_marks.clear()
 
@@ -270,6 +273,64 @@ def ensure_catalog_instrument(
             )
         )
     return instrument, warning
+
+
+_ISIN_RE = re.compile(r"^[A-Z]{2}[A-Z0-9]{9}[0-9]$")
+
+
+def resolve_isin(db: Session, isin: str) -> Instrument | None:
+    """Catalog instrument for an ISIN: an existing row first (shared or any
+    user's — the ISIN is a public identifier), else one equity-provider search
+    (Yahoo answers ISIN queries with the primary listing) whose best
+    EQUITY/ETF hit is added to the shared catalog. Misses are remembered for
+    an hour so a broker file with an unknown ISIN costs one request, not one
+    per preview."""
+    isin = isin.strip().upper()
+    if not _ISIN_RE.match(isin):
+        return None
+    existing = db.scalars(
+        select(Instrument).where(Instrument.isin == isin).order_by(Instrument.user_id.is_(None).desc())
+    ).first()
+    if existing is not None:
+        return existing
+    if _isin_misses.get(isin) is not None:
+        return None
+    name = settings.market_equity_provider
+    if name == "null" or not registry.circuit_allows(db, name):
+        return None
+    provider = registry.build_provider(name)
+    try:
+        results = provider.search(isin, limit=5)
+        registry.record_success(db, name)
+    except MarketDataError as exc:
+        _handle_provider_error(db, name, exc)
+        db.commit()
+        return None
+    hit = next((r for r in results if r.asset_class in ("action", "etf")), None)
+    if hit is None:
+        _isin_misses.set(isin, True)
+        db.commit()
+        return None
+    try:
+        instrument, _warning = ensure_catalog_instrument(
+            db,
+            provider=hit.provider,
+            provider_symbol=hit.provider_symbol,
+            symbol=hit.symbol,
+            name=hit.name,
+            asset_class=hit.asset_class,
+            currency=hit.currency,
+            exchange=hit.exchange,
+            isin=isin,
+        )
+    except ValueError:
+        _isin_misses.set(isin, True)
+        db.commit()
+        return None
+    if not instrument.isin:
+        instrument.isin = isin
+    db.commit()
+    return instrument
 
 
 # ---------------------------------------------------------------------------
@@ -618,6 +679,7 @@ __all__ = [
     "QuoteView",
     "HistoryView",
     "search",
+    "resolve_isin",
     "ensure_catalog_instrument",
     "refresh_quote",
     "get_history",

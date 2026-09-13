@@ -13,6 +13,7 @@ import { NewsHubPage } from "./pages/NewsHubPage";
 import { PortfoliosPage } from "./pages/PortfoliosPage";
 import { PredictionPage } from "./pages/PredictionPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { HeaderSearch } from "./components/HeaderSearch";
 import { href, useRoute } from "./router";
 import type { AuthResponse, User } from "./types";
 
@@ -70,7 +71,7 @@ export function App() {
       page = arg ? <InstrumentPage key={arg} instrumentId={arg} initialTab={route.query.tab} /> : <MarketsPage />;
       break;
     case "portfolios":
-      page = <PortfoliosPage selectedId={arg} />;
+      page = <PortfoliosPage selectedId={arg} initialTab={route.query.tab} />;
       break;
     case "instruments":
       page = <InstrumentsPage />;
@@ -112,6 +113,7 @@ export function App() {
             ))}
           </nav>
           <div className="header-user">
+            <HeaderSearch />
             <span className="muted">{user.display_name || user.email}</span>
             <button type="button" className="link-button" onClick={handleLogout}>
               Se déconnecter

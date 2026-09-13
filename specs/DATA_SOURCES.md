@@ -53,6 +53,15 @@ Sources réelles vérifiées (URL testée, licence et quotas confirmés à la so
 - **Authentification réelle** : paramètre de requête `token`, confirmé par `securityDefinitions` du schéma OpenAPI (`"in": "query"`, pas un en-tête). L'adaptateur supporte désormais `auth.in: "query"`.
 - **⚠️ Constat opérationnel** : la clé fournie lors de la configuration initiale a été testée en direct (requête réelle, en dehors de l'application) et retourne `401 Invalid API key`, avec les deux mécanismes d'authentification. Vérifier la clé sur finnhub.io (Dashboard → API Keys) et la remplacer dans `.env`.
 
+### Finnhub — actualités automatiques par instrument (`backend/app/news/auto.py`)
+
+Même clé et mêmes conditions que ci-dessus. Un feed `company-news` est créé automatiquement par
+action/ETF du catalogue partagé (symbole du fournisseur de marché, fenêtre glissante de 30 jours),
+rafraîchi à la demande au plus une fois par heure par instrument et par le worker toutes les
+15 minutes pour les seuls instruments détenus ou suivis. Une réponse 4xx (clé invalide, symbole
+inconnu) n'est jamais re-tentée ; au-delà de `NEXORA_AUTO_DISABLE_AFTER_FAILURES` échecs la source
+se désactive et doit être réactivée par un administrateur.
+
 ### Calendrier ICS — aucune source retenue pour l'instant
 
 Aucun calendrier ICS officiel (Réserve fédérale, NYSE, Nasdaq) n'a été trouvé avec une licence de réutilisation programmatique claire ; les agrégateurs tiers identifiés affichent un copyright « tous droits réservés » sans autorisation explicite. À réévaluer si une société suivie publie son propre calendrier IR en ICS.

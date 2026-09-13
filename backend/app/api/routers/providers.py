@@ -13,7 +13,8 @@ from app.api.deps import get_current_user, get_db
 from app.config import settings
 from app.market import registry
 from app.models import Provider, User
-from app.schemas.providers import MarketProviderPublicOut, ProvidersOverviewOut, ProviderStatusOut
+from app.news import auto as news_auto
+from app.schemas.providers import AutoNewsOut, MarketProviderPublicOut, ProvidersOverviewOut, ProviderStatusOut
 
 router = APIRouter(prefix="/api/v1/providers", tags=["providers"])
 
@@ -63,9 +64,23 @@ def providers_status(user: User = Depends(get_current_user), db: Session = Depen
         ProviderStatusOut.model_validate({**p.__dict__, "healthy": p.circuit_state == "closed"})
         for p in db.scalars(select(Provider).order_by(Provider.name)).all()
     ]
+    configured = news_auto.is_configured()
     return ProvidersOverviewOut(
         market=market,
         news=news,
+        auto_news=AutoNewsOut(
+            provider="finnhub",
+            configured=configured,
+            env_var=settings.finnhub_api_key_env_var,
+            detail=(
+                "actualités par société récupérées automatiquement pour les actions/ETF suivis"
+                if configured
+                else (
+                    f"définissez {settings.finnhub_api_key_env_var} (clé gratuite sur finnhub.io) "
+                    "pour activer les actualités par société"
+                )
+            ),
+        ),
         prediction_enabled=settings.prediction_enabled,
         quote_freshness_minutes=settings.quote_freshness_minutes,
     )

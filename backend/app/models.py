@@ -45,6 +45,8 @@ TRANSACTION_TYPES = (
     "vente",
     "dividende",
     "coupon",
+    "interet",
+    "frais",
     "depot",
     "retrait",
     "transfert",
@@ -55,7 +57,10 @@ TRANSACTION_TYPES = (
 # quantity effect): the CSV schema in specs/PORTFOLIO_IMPORTS.md uses the same
 # `quantity`/`unit_price` columns for every type, so for these the convention
 # is quantity == 1 and unit_price == the cash amount (see app/domain/positions.py).
-CASH_ONLY_TRANSACTION_TYPES = ("dividende", "coupon", "depot", "retrait")
+# `interet` (interest paid on cash) and `frais` (a standalone fee such as a
+# custody fee) are *internal* cash movements like dividends - they change the
+# value without being an external contribution/withdrawal (TWR/MWR).
+CASH_ONLY_TRANSACTION_TYPES = ("dividende", "coupon", "interet", "frais", "depot", "retrait")
 
 MARKET_PROVIDER_NAMES = ("yahoo", "coingecko", "finnhub", "frankfurter", "fixture", "null")
 
@@ -376,6 +381,9 @@ class ImportJob(Base):
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     filename: Mapped[str] = mapped_column(String(260))
     status: Mapped[str] = mapped_column(String(12), default="draft")
+    # Broker export profile applied before the generic mapping (see
+    # app/domain/broker_presets.py); None = generic CSV.
+    preset: Mapped[str | None] = mapped_column(String(32), nullable=True)
     delimiter: Mapped[str] = mapped_column(String(4))
     encoding: Mapped[str] = mapped_column(String(40))
     column_mapping: Mapped[dict] = mapped_column(JSONType, default=dict)

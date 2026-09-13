@@ -1,9 +1,11 @@
 """Bounded retry with backoff for adapter calls.
 
 Only transient failures (timeout, HTTP 5xx/connection errors, rate limits)
-are retried; `AdapterParseError` / `AdapterMisconfigured` are not transient
-and propagate immediately so the pipeline does not waste a fetch budget
-retrying a malformed feed or a missing credential.
+are retried; `AdapterParseError` / `AdapterMisconfigured` and HTTP 4xx
+client errors (an invalid key, an unknown symbol, a forbidden endpoint) are
+not transient and propagate immediately so the pipeline does not waste a
+fetch budget - or a provider's patience - retrying something that will fail
+identically three more times.
 """
 
 from __future__ import annotations
@@ -46,6 +48,9 @@ def call_with_retries(
             )
             sleep(delay)
         except (AdapterTimeout, AdapterHTTPError) as exc:
+            status = getattr(exc, "status_code", None)
+            if status is not None and 400 <= status < 500 and status != 408:
+                raise RetriesExhausted(exc) from exc
             attempt += 1
             if attempt > max_retries:
                 raise RetriesExhausted(exc) from exc
