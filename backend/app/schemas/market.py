@@ -159,3 +159,6 @@ class MarketOverviewEntry(BaseModel):
     quote: QuoteOut | None
     held_quantity: Decimal | None = None
     watched: bool = False
+    held: bool = False  # portfolio position or watchlist "je détiens"
+    entry_price: Decimal | None = None
+    watchlist_item_id: str | None = None

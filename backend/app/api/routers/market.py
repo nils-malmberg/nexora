@@ -366,19 +366,23 @@ def market_overview(user: User = Depends(get_current_user), db: Session = Depend
         .where(Portfolio.user_id == user.id, PositionLot.quantity_remaining > 0)
     ):
         held[lot.instrument_id] = held.get(lot.instrument_id, Decimal("0")) + Decimal(str(lot.quantity_remaining))
-    watched = {w.instrument_id for w in db.scalars(select(WatchlistItem).where(WatchlistItem.user_id == user.id))}
-    ids = sorted(set(held) | watched)
+    items = {w.instrument_id: w for w in db.scalars(select(WatchlistItem).where(WatchlistItem.user_id == user.id))}
+    ids = sorted(set(held) | set(items))
     entries = []
     for instrument_id in ids:
         instrument = db.get(Instrument, instrument_id)
         if instrument is None:
             continue
+        item = items.get(instrument_id)
         entries.append(
             MarketOverviewEntry(
                 instrument=InstrumentOut.from_model(instrument),
                 quote=quote_out(db, instrument, refresh=False),
                 held_quantity=held.get(instrument_id),
-                watched=instrument_id in watched,
+                watched=instrument_id in items,
+                held=instrument_id in held or bool(item and item.held),
+                entry_price=item.entry_price if item else None,
+                watchlist_item_id=item.id if item else None,
             )
         )
     return entries
