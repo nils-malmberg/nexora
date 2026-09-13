@@ -55,6 +55,16 @@ class Settings(BaseSettings):
     # --- Market data (app/market) -------------------------------------------
     # Which adapter serves each asset family; "null" disables live data for
     # that family (manual prices only). See specs/DATA_SOURCES.md.
+    # --- product mode ---------------------------------------------------------
+    # single_user: the SPA opens a local session automatically (no account,
+    # no password) — for a personal machine or a trusted LAN only; set to
+    # false to require accounts. portfolios_enabled: the bookkeeping side
+    # (portfolios, transactions, imports, realized gains…) — off by default
+    # since the pivot to market analysis; the code stays, the routes answer 404.
+    single_user: bool = True
+    single_user_email: str = "local@nexora.example"
+    portfolios_enabled: bool = False
+
     market_equity_provider: str = "yahoo"  # yahoo | finnhub | null
     market_crypto_provider: str = "coingecko"  # coingecko | null
     market_fx_provider: str = "frankfurter"  # frankfurter | null
@@ -109,7 +119,7 @@ class Settings(BaseSettings):
 
     # --- Prediction (app/prediction) — experimental, off by default ---------
     # Kill switch (specs/PREDICTION.md: "désactivée par défaut", "kill switch").
-    prediction_enabled: bool = False
+    prediction_enabled: bool = True  # on by default since the pivot to market analysis (was opt-in)
     prediction_max_observations: int = 4000
     prediction_min_observations: int = 120
     prediction_max_experiments_per_user: int = 50

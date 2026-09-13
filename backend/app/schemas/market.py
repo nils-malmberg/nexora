@@ -105,11 +105,29 @@ class WatchlistItemOut(BaseModel):
     id: str
     instrument: InstrumentOut
     quote: QuoteOut | None
+    held: bool = False
+    entry_price: Decimal | None = None
+    entry_date: datetime | None = None
+    quantity: Decimal | None = None
+    note: str | None = None
     created_at: datetime
 
 
 class WatchlistAddRequest(BaseModel):
     instrument_id: str
+
+
+class WatchlistUpdateRequest(BaseModel):
+    """'Je détiens ce titre' with an optional entry price/date/quantity — a
+    note to oneself the decision aid uses to frame 'sell or hold', never a
+    transaction."""
+
+    held: bool | None = None
+    entry_price: Decimal | None = Field(default=None, gt=0)
+    entry_date: datetime | None = None
+    quantity: Decimal | None = Field(default=None, gt=0)
+    note: str | None = Field(default=None, max_length=200)
+    clear_entry: bool = False
 
 
 class QuickBuyRequest(BaseModel):

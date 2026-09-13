@@ -82,6 +82,38 @@ def register(
     return AuthResponse(user=UserOut.model_validate(user), csrf_token=csrf_token)
 
 
+@router.post("/local", response_model=AuthResponse)
+def local_session(request: Request, response: Response, db: Session = Depends(get_db)) -> AuthResponse:
+    """Single-user mode: opens a session for the built-in local account
+    (created on first use, admin, unguessable random password so the normal
+    login path can never be used for it). Only exists while
+    NEXORA_SINGLE_USER is true; rate-limited like a login."""
+    if not settings.single_user:
+        raise HTTPException(status_code=404, detail="Not Found")
+    client_host = request.client.host if request.client else "unknown"
+    if not _login_limiter.allow(f"local:{client_host}"):
+        auth_attempts_total.labels(kind="local", outcome="rate_limited").inc()
+        raise HTTPException(status_code=429, detail="too many attempts, try again later")
+    _login_limiter.record(f"local:{client_host}")
+    email = settings.single_user_email.lower()
+    user = db.scalars(select(User).where(User.email == email)).first()
+    if user is None:
+        user = User(
+            email=email,
+            password_hash=hash_password(generate_token() + generate_token()),
+            display_name="Utilisateur local",
+            is_admin=True,
+        )
+        db.add(user)
+        db.add(AuditEvent(user_id=None, action="account.local_create", target_type="user"))
+        db.commit()
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="local account disabled")
+    auth_attempts_total.labels(kind="local", outcome="success").inc()
+    csrf_token = _issue_session(db, response, user, request.headers.get("user-agent"))
+    return AuthResponse(user=UserOut.model_validate(user), csrf_token=csrf_token)
+
+
 @router.post("/login", response_model=AuthResponse)
 def login(payload: LoginRequest, request: Request, response: Response, db: Session = Depends(get_db)) -> AuthResponse:
     limiter_key = f"login:{payload.email.lower()}"
