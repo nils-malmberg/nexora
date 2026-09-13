@@ -708,9 +708,10 @@ def prediction_signal(forecast: dict | None, metrics: dict | None, horizon_days:
         exp = math.exp(float(expected)) - 1.0  # log-return → simple return
     except (TypeError, ValueError, OverflowError):
         return None
-    meta = (metrics or {}).get("meta") or {}
+    models = (metrics or {}).get("models") or metrics or {}
+    meta = models.get("meta") or {}
     direction = meta.get("direction_accuracy")
-    naive = ((metrics or {}).get("naive") or {}).get("mae")
+    naive = (models.get("naive_last") or models.get("naive") or {}).get("mae")
     meta_mae = meta.get("mae")
     beats = naive is not None and meta_mae is not None and meta_mae < naive
     trusted = direction is not None and direction > 0.55 and beats

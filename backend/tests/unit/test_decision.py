@@ -102,8 +102,8 @@ def test_fundamental_readings_cover_quality_and_consensus():
 
 
 def test_prediction_signal_requires_out_of_sample_edge():
-    metrics_good = {"meta": {"direction_accuracy": 0.6, "mae": 0.01}, "naive": {"mae": 0.02}}
-    metrics_bad = {"meta": {"direction_accuracy": 0.5, "mae": 0.03}, "naive": {"mae": 0.02}}
+    metrics_good = {"models": {"meta": {"direction_accuracy": 0.6, "mae": 0.01}, "naive_last": {"mae": 0.02}}}
+    metrics_bad = {"models": {"meta": {"direction_accuracy": 0.5, "mae": 0.03}, "naive_last": {"mae": 0.02}}}
     up = decision.prediction_signal({"expected_log_return": 0.02}, metrics_good, 5)
     assert up.reading == "favorable" and "5 j" in up.label and up.value == "2.0 %"
     down = decision.prediction_signal({"expected_log_return": -0.02}, metrics_good, 5)
