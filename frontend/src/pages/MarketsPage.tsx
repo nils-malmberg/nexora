@@ -43,14 +43,14 @@ export function MarketsPage() {
     }
   }
 
-  const held = entries.filter((e) => e.held_quantity !== null);
-  const watchedOnly = entries.filter((e) => e.held_quantity === null && e.watched);
+  const held = entries.filter((e) => e.held);
+  const watchedOnly = entries.filter((e) => !e.held && e.watched);
 
   return (
     <section aria-label="Marchés">
       <h2>Marchés</h2>
       <p className="muted">
-        Recherchez n'importe quelle action, ETF, indice ou crypto-actif, ouvrez sa fiche (cours, chandeliers, indicateurs, actualités) et ajoutez-le à un portefeuille ou à votre liste de suivi en un clic.
+        Recherchez n'importe quelle action, ETF, indice ou crypto-actif, ouvrez sa fiche (« Acheter ou vendre ? », graphique et outils, actualités) et suivez-le en un clic.
       </p>
       <InstrumentSearch />
       {providers && (
@@ -67,13 +67,13 @@ export function MarketsPage() {
       )}
       {error && <p className="error-state">{error}</p>}
 
-      <h3>Positions détenues</h3>
-      <OverviewTable entries={held} emptyText="Aucune position pour l'instant : recherchez un instrument ci-dessus puis « Ajouter au portefeuille »." />
+      <DecisionOverviewTable key={tick} />
+
+      <h3>Titres que vous détenez</h3>
+      <OverviewTable entries={held} emptyText="Aucun titre déclaré : depuis la fiche d'un instrument, « Je détiens ce titre » (prix d'entrée facultatif)." />
 
       <h3>Liste de suivi</h3>
       <OverviewTable entries={watchedOnly} emptyText="Aucun instrument suivi. Depuis la fiche d'un instrument, cliquez « Suivre »." onUnwatch={unwatch} />
-
-      <DecisionOverviewTable key={tick} />
 
       <ComparePanel instruments={entries.map((e) => e.instrument)} />
     </section>
@@ -118,7 +118,7 @@ function OverviewTable({ entries, emptyText, onUnwatch }: { entries: OverviewEnt
                   {q && <FreshnessBadge freshness={q.freshness} />} {q && <QuoteStatusBadge status={q.status} reason={q.reason} />}
                   {q?.age_seconds !== null && q?.age_seconds !== undefined && <span className="muted"> {formatAge(q.age_seconds)}</span>}
                 </td>
-                <td>{e.held_quantity ? formatQuantity(e.held_quantity) : "—"}</td>
+                <td>{e.held_quantity ? formatQuantity(e.held_quantity) : e.entry_price ? `entrée ${formatAmount(e.entry_price, e.instrument.currency)}` : e.held ? "oui" : "—"}</td>
                 <td className="muted">{q?.source ?? "—"}</td>
                 {onUnwatch && (
                   <td>

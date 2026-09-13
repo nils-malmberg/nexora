@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { errorMessage, getDecisionOverview } from "../api/client";
 import { href } from "../router";
 import type { DecisionOverview } from "../types";
+import { OrientationBadge } from "./DecisionAidPanel";
 import { ReadingBadge, TallyBar } from "./ReadingBadge";
 
 /** The quick read for everything held or watched, from cached data only
@@ -26,7 +27,7 @@ export function DecisionOverviewTable() {
 
   return (
     <section aria-label="Bilan rapide">
-      <h3>Bilan rapide (aide à la décision)</h3>
+      <h3>Acheter ou vendre ? — vos instruments en un coup d'œil</h3>
       <p className="muted">
         Lecture instantanée des méthodes principales sur vos instruments, à partir des données en cache. Cliquez un instrument pour le bilan complet et les explications. <a href={href("help", "aide-a-la-decision")}>Comment lire</a>
       </p>
@@ -35,6 +36,7 @@ export function DecisionOverviewTable() {
           <thead>
             <tr>
               <th>Instrument</th>
+              <th>Orientation</th>
               <th>Tendance</th>
               <th>Momentum 12 m</th>
               <th>RSI</th>
@@ -51,6 +53,10 @@ export function DecisionOverviewTable() {
                     <strong>{e.instrument.symbol}</strong>
                   </a>{" "}
                   <span className="muted">{e.held ? "détenu" : "suivi"}</span>
+                </td>
+                <td>
+                  <OrientationBadge orientation={e.orientation} label={e.orientation_label} />
+                  <div className="muted">confiance {e.orientation_confidence}</div>
                 </td>
                 <td>
                   <ReadingBadge reading={e.trend} compact />

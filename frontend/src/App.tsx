@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { logout as apiLogout, me } from "./api/client";
+import { getConfig, localLogin, logout as apiLogout, me } from "./api/client";
 import { setCsrfToken } from "./authStore";
+import { appConfig, setAppConfig } from "./configStore";
 import { AdminPage } from "./pages/AdminPage";
 import { AlertsPage } from "./pages/AlertsPage";
 import { AnalysisPage } from "./pages/AnalysisPage";
@@ -19,10 +20,10 @@ import { NotificationsBell } from "./components/NotificationsBell";
 import { href, useRoute } from "./router";
 import type { AuthResponse, User } from "./types";
 
-const NAV: { id: string; label: string }[] = [
-  { id: "dashboard", label: "Tableau de bord" },
+const NAV: { id: string; label: string; needsPortfolios?: boolean }[] = [
+  { id: "dashboard", label: "Accueil" },
   { id: "markets", label: "Marchés" },
-  { id: "portfolios", label: "Portefeuilles" },
+  { id: "portfolios", label: "Portefeuilles", needsPortfolios: true },
   { id: "analysis", label: "Analyse" },
   { id: "news", label: "Actualités" },
   { id: "prediction", label: "Prédiction" },
@@ -36,15 +37,32 @@ export function App() {
   const route = useRoute();
 
   useEffect(() => {
-    me()
-      .then((auth) => {
+    (async () => {
+      try {
+        setAppConfig(await getConfig());
+      } catch {
+        // keep the conservative defaults
+      }
+      try {
+        const auth = await me();
         setCsrfToken(auth.csrf_token);
         setUser(auth.user);
-      })
-      .catch(() => {
-        // No valid session: stay on the auth screen.
-      })
-      .finally(() => setCheckingSession(false));
+      } catch {
+        // No valid session: in single-user mode open the local one, else
+        // stay on the account screen.
+        if (appConfig().single_user) {
+          try {
+            const auth = await localLogin();
+            setCsrfToken(auth.csrf_token);
+            setUser(auth.user);
+          } catch {
+            // the auth screen stays as the fallback
+          }
+        }
+      } finally {
+        setCheckingSession(false);
+      }
+    })();
   }, []);
 
   function handleAuthenticated(auth: AuthResponse) {
@@ -73,7 +91,7 @@ export function App() {
       page = arg ? <InstrumentPage key={arg} instrumentId={arg} initialTab={route.query.tab} /> : <MarketsPage />;
       break;
     case "portfolios":
-      page = <PortfoliosPage selectedId={arg} initialTab={route.query.tab} />;
+      page = appConfig().portfolios_enabled ? <PortfoliosPage selectedId={arg} initialTab={route.query.tab} /> : <p className="empty-state">La gestion de portefeuille est désactivée (NEXORA_PORTFOLIOS_ENABLED).</p>;
       break;
     case "instruments":
       page = <InstrumentsPage />;
@@ -111,7 +129,7 @@ export function App() {
             <span className="brand-mark">N</span> NeXora
           </a>
           <nav aria-label="Navigation principale">
-            {NAV.map((item) => (
+            {NAV.filter((item) => !item.needsPortfolios || appConfig().portfolios_enabled).map((item) => (
               <a key={item.id} href={href(item.id)} aria-current={section === item.id ? "page" : undefined}>
                 {item.label}
               </a>
@@ -120,10 +138,14 @@ export function App() {
           <div className="header-user">
             <HeaderSearch />
             <NotificationsBell />
-            <span className="muted">{user.display_name || user.email}</span>
-            <button type="button" className="link-button" onClick={handleLogout}>
-              Se déconnecter
-            </button>
+            {!appConfig().single_user && (
+              <>
+                <span className="muted">{user.display_name || user.email}</span>
+                <button type="button" className="link-button" onClick={handleLogout}>
+                  Se déconnecter
+                </button>
+              </>
+            )}
           </div>
         </div>
       </header>

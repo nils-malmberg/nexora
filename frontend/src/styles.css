@@ -1378,3 +1378,114 @@ code {
 .signal-row.signal-indisponible td {
   color: #64748b;
 }
+
+/* --- buy / sell framing ------------------------------------------------------ */
+
+.orientation {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+.orientation-big {
+  font-size: 1.25rem;
+  padding: 0.45rem 1rem;
+}
+.orientation-confidence {
+  font-weight: 400;
+  font-size: 0.85em;
+  opacity: 0.85;
+}
+.orientation-achat {
+  background: #dcfce7;
+  color: #14532d;
+  border-color: #86efac;
+}
+.orientation-vente {
+  background: #fee2e2;
+  color: #7f1d1d;
+  border-color: #fca5a5;
+}
+.orientation-attendre {
+  background: #fef3c7;
+  color: #78350f;
+  border-color: #fcd34d;
+}
+.decision-summary.decision-achat {
+  border-left-color: #16a34a;
+}
+.decision-summary.decision-vente {
+  border-left-color: #dc2626;
+}
+.decision-summary.decision-attendre {
+  border-left-color: #d97706;
+}
+.decision-text {
+  font-size: 1.05rem;
+}
+.verdict-columns ul {
+  margin: 0.25rem 0 0.75rem;
+  padding-left: 1.1rem;
+}
+.verdict-grid .card {
+  padding: 0.75rem 1rem;
+}
+.decision-holder {
+  border-left: 4px solid #1d4ed8;
+}
+.decision-holder.decision-vente {
+  border-left-color: #dc2626;
+}
+.decision-holder.decision-achat {
+  border-left-color: #16a34a;
+}
+.levels-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.75rem 1rem;
+  margin: 0.75rem 0;
+}
+.levels-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.levels-grid strong {
+  font-size: 1.15rem;
+}
+
+/* --- chart workbench --------------------------------------------------------- */
+
+.chart-toggles {
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+.chart-drawing svg {
+  cursor: crosshair;
+}
+.volume-bar.volume-up {
+  fill: #16a34a;
+  opacity: 0.35;
+}
+.volume-bar.volume-down {
+  fill: #dc2626;
+  opacity: 0.35;
+}
+.tool-readings .card p {
+  margin: 0.3rem 0;
+}
+.pattern-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.pattern-list li {
+  margin-bottom: 0.5rem;
+}
+.pattern-list li p {
+  margin: 0.15rem 0 0;
+}

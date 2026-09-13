@@ -152,6 +152,9 @@ export interface WatchlistItem {
 }
 
 export interface OverviewEntry {
+  held: boolean;
+  entry_price: string | null;
+  watchlist_item_id: string | null;
   instrument: Instrument;
   quote: Quote | null;
   held_quantity: string | null;
